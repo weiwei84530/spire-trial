@@ -137,8 +137,175 @@ define({
   },
 });
 
+// --- Act 2 roster ---
+
 define({
-  // Placeholder Act 1 boss; real bosses land on Days 7-9.
+  id: 'shelled_parasite',
+  name: 'Shelled Parasite',
+  hp: [40, 44],
+  moves: [
+    { id: 'double_strike', intent: 'attack', effects: [{ kind: 'damage', amount: 6, times: 2 }] },
+    {
+      id: 'harden',
+      intent: 'defend',
+      effects: [
+        { kind: 'block', amount: 8 },
+        { kind: 'applyStatus', status: 'metallicize', stacks: 2, target: 'self' },
+      ],
+    },
+  ],
+  ai: {
+    type: 'weighted',
+    choices: [
+      { move: 'double_strike', weight: 60, maxRepeat: 2 },
+      { move: 'harden', weight: 40, maxRepeat: 1 },
+    ],
+  },
+});
+
+define({
+  id: 'byrd',
+  name: 'Byrd',
+  hp: [26, 30],
+  moves: [
+    { id: 'peck', intent: 'attack', effects: [{ kind: 'damage', amount: 1, times: 5 }] },
+    { id: 'swoop', intent: 'attack', effects: [{ kind: 'damage', amount: 12 }] },
+    {
+      id: 'caw',
+      intent: 'buff',
+      effects: [{ kind: 'applyStatus', status: 'strength', stacks: 1, target: 'self' }],
+    },
+  ],
+  ai: {
+    type: 'weighted',
+    choices: [
+      { move: 'peck', weight: 50, maxRepeat: 2 },
+      { move: 'swoop', weight: 25, maxRepeat: 1 },
+      { move: 'caw', weight: 25, maxRepeat: 1 },
+    ],
+  },
+});
+
+define({
+  id: 'chosen',
+  name: 'Chosen',
+  hp: [50, 55],
+  moves: [
+    { id: 'zap', intent: 'attack', effects: [{ kind: 'damage', amount: 14 }] },
+    {
+      id: 'debilitate',
+      intent: 'debuff',
+      effects: [
+        { kind: 'applyStatus', status: 'weak', stacks: 2, target: 'enemy' },
+        { kind: 'applyStatus', status: 'frail', stacks: 2, target: 'enemy' },
+      ],
+    },
+    {
+      id: 'drain',
+      intent: 'buff',
+      effects: [
+        { kind: 'applyStatus', status: 'weak', stacks: 2, target: 'enemy' },
+        { kind: 'heal', amount: 10 },
+      ],
+    },
+  ],
+  ai: { type: 'sequence', moves: ['debilitate', 'zap', 'drain', 'zap'], loopFrom: 1 },
+});
+
+define({
+  id: 'snake_plant',
+  name: 'Snake Plant',
+  hp: [60, 65],
+  moves: [
+    { id: 'chomp', intent: 'attack', effects: [{ kind: 'damage', amount: 7, times: 3 }] },
+    {
+      id: 'enfeebling_spores',
+      intent: 'debuff',
+      effects: [
+        { kind: 'applyStatus', status: 'frail', stacks: 2, target: 'enemy' },
+        { kind: 'applyStatus', status: 'weak', stacks: 2, target: 'enemy' },
+      ],
+    },
+  ],
+  ai: {
+    type: 'weighted',
+    choices: [
+      { move: 'chomp', weight: 65, maxRepeat: 2 },
+      { move: 'enfeebling_spores', weight: 35, maxRepeat: 1 },
+    ],
+  },
+});
+
+define({
+  id: 'centurion',
+  name: 'Centurion',
+  hp: [56, 60],
+  moves: [
+    { id: 'slash', intent: 'attack', effects: [{ kind: 'damage', amount: 12 }] },
+    { id: 'heavy_slash', intent: 'attack', effects: [{ kind: 'damage', amount: 16 }] },
+    { id: 'fury', intent: 'defend', effects: [{ kind: 'block', amount: 15 }] },
+  ],
+  ai: {
+    type: 'weighted',
+    choices: [
+      { move: 'slash', weight: 45, maxRepeat: 2 },
+      { move: 'heavy_slash', weight: 25, maxRepeat: 1 },
+      { move: 'fury', weight: 30, maxRepeat: 1 },
+    ],
+  },
+});
+
+define({
+  // Act 2 elite.
+  id: 'gremlin_nob',
+  name: 'Gremlin Nob',
+  hp: [82, 86],
+  moves: [
+    {
+      id: 'bellow',
+      intent: 'buff',
+      effects: [{ kind: 'applyStatus', status: 'ritual', stacks: 2, target: 'self' }],
+    },
+    { id: 'rush', intent: 'attack', effects: [{ kind: 'damage', amount: 14 }] },
+    {
+      id: 'skull_bash',
+      intent: 'attack',
+      effects: [
+        { kind: 'damage', amount: 6 },
+        { kind: 'applyStatus', status: 'vulnerable', stacks: 2, target: 'enemy' },
+      ],
+    },
+  ],
+  ai: { type: 'sequence', moves: ['bellow', 'skull_bash', 'rush', 'rush'], loopFrom: 1 },
+});
+
+define({
+  // Act 2 boss: killing it splits it into two smaller slimes.
+  id: 'slime_king',
+  name: 'Slime King',
+  hp: [95, 100],
+  moves: [
+    {
+      id: 'goop_spray',
+      intent: 'debuff',
+      effects: [{ kind: 'addCard', card: 'wound', count: 2, destination: 'discardPile' }],
+    },
+    { id: 'crush', intent: 'attack', effects: [{ kind: 'damage', amount: 18 }] },
+    {
+      id: 'body_slam',
+      intent: 'attack',
+      effects: [
+        { kind: 'damage', amount: 10 },
+        { kind: 'block', amount: 10 },
+      ],
+    },
+  ],
+  ai: { type: 'sequence', moves: ['goop_spray', 'crush', 'body_slam'] },
+  onDeath: { spawn: ['acid_slime', 'spike_slime_m'] },
+});
+
+define({
+  // Placeholder Act 3 boss; the real one lands on Day 9.
   id: 'boss_maw',
   name: 'The Maw',
   hp: [88, 92],

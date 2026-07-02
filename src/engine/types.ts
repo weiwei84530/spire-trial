@@ -99,6 +99,8 @@ export interface EnemyDef {
   hp: [min: number, max: number];
   moves: EnemyMove[];
   ai: EnemyAi;
+  /** Triggered once when this enemy dies (e.g. splitting bosses). */
+  onDeath?: { spawn: string[] };
 }
 
 export interface EnemyState extends Actor {
@@ -108,6 +110,8 @@ export interface EnemyState extends Actor {
   nextMoveId: string;
   /** Recent move ids, newest last. Used by AI repeat constraints. */
   moveHistory: string[];
+  /** Set once the death trigger has fired, so it never fires twice. */
+  deathProcessed?: boolean;
 }
 
 export type BattlePhase = 'playerTurn' | 'victory' | 'defeat';

@@ -45,6 +45,8 @@ const MAX_HAND = 10;
 export class Battle {
   readonly state: BattleState;
   private readonly rng: Rng;
+  /** Kept for scaling enemies spawned mid-battle (death triggers). */
+  private readonly hpScale: number;
 
   constructor(config: BattleConfig) {
     this.rng = new Rng(config.seed);
@@ -64,14 +66,8 @@ export class Battle {
     player.drawPile.sort(
       (a, b) => Number(resolveCard(a).innate ?? false) - Number(resolveCard(b).innate ?? false),
     );
-    const enemies = config.enemies.map((id) => spawnEnemy(id, this.rng));
-    const hpScale = config.enemyHpScale ?? 1;
-    if (hpScale !== 1) {
-      for (const enemy of enemies) {
-        enemy.maxHp = Math.round(enemy.maxHp * hpScale);
-        enemy.hp = enemy.maxHp;
-      }
-    }
+    this.hpScale = config.enemyHpScale ?? 1;
+    const enemies = config.enemies.map((id) => this.spawnScaled(id));
     this.state = { turn: 1, phase: 'playerTurn', player, enemies, log: [] };
     this.startPlayerTurn();
     if (config.startEffects && config.startEffects.length > 0) {
@@ -180,7 +176,8 @@ export class Battle {
       this.log(`Player gains ${playerRitual} strength from ritual`);
     }
 
-    for (const enemy of this.state.enemies) {
+    // Snapshot: enemies spawned this turn (death triggers) act from the next turn on.
+    for (const enemy of [...this.state.enemies]) {
       if (enemy.hp <= 0) continue;
       this.runEnemyTurn(enemy);
       if (this.checkBattleEnd()) return;
@@ -335,8 +332,34 @@ export class Battle {
     }
   }
 
+  private spawnScaled(defId: string): EnemyState {
+    const enemy = spawnEnemy(defId, this.rng);
+    if (this.hpScale !== 1) {
+      enemy.maxHp = Math.round(enemy.maxHp * this.hpScale);
+      enemy.hp = enemy.maxHp;
+    }
+    return enemy;
+  }
+
+  /** Fires each dead enemy's death trigger exactly once (may spawn reinforcements). */
+  private processDeaths(): void {
+    for (const enemy of [...this.state.enemies]) {
+      if (enemy.hp > 0 || enemy.deathProcessed) continue;
+      enemy.deathProcessed = true;
+      const def = getEnemyDef(enemy.defId);
+      if (def.onDeath?.spawn) {
+        for (const id of def.onDeath.spawn) {
+          const spawned = this.spawnScaled(id);
+          this.state.enemies.push(spawned);
+          this.log(`${spawned.name} emerges from ${enemy.name}!`);
+        }
+      }
+    }
+  }
+
   private checkBattleEnd(): boolean {
     if (this.state.phase !== 'playerTurn') return true;
+    this.processDeaths();
     if (this.state.player.hp <= 0) {
       this.state.phase = 'defeat';
       this.log('Defeat');

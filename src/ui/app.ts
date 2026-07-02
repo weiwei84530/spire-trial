@@ -49,6 +49,16 @@ function enemyArt(defId: string): string {
       <path d="M20 30 l-10 -8 M25 22 l-8 -12 M60 30 l10 -8 M55 22 l8 -12" stroke="var(--art)" stroke-width="3"/>
       <circle cx="34" cy="32" r="3" fill="#111"/><circle cx="46" cy="32" r="3" fill="#111"/></svg>`;
   }
+  if (defId === 'byrd') {
+    return `<svg viewBox="0 0 80 60"><ellipse cx="40" cy="38" rx="16" ry="13" fill="var(--art)"/>
+      <path d="M26 34 q-14 -12 -4 -20 q2 10 8 14 M54 34 q14 -12 4 -20 q-2 10 -8 14" fill="var(--art)"/>
+      <path d="M40 30 l6 4 l-6 3 Z" fill="#e8b93b"/><circle cx="35" cy="32" r="2.5" fill="#111"/></svg>`;
+  }
+  if (defId === 'snake_plant') {
+    return `<svg viewBox="0 0 80 60"><path d="M38 58 q-4 -26 2 -44 q8 14 4 44 Z" fill="var(--art)"/>
+      <path d="M30 52 q-14 -10 -10 -26 q10 6 12 24 M50 52 q14 -10 10 -26 q-10 6 -12 24" fill="var(--art)" opacity="0.8"/>
+      <circle cx="41" cy="20" r="4" fill="#111" opacity="0.5"/></svg>`;
+  }
   return `<svg viewBox="0 0 80 60"><path d="M40 8 L62 56 L18 56 Z" fill="var(--art)"/>
     <circle cx="40" cy="26" r="9" fill="#111" opacity="0.6"/>
     <circle cx="37" cy="25" r="2" fill="#e8d44d"/><circle cx="44" cy="25" r="2" fill="#e8d44d"/></svg>`;
@@ -61,6 +71,13 @@ const ENEMY_COLORS: Record<string, string> = {
   spike_slime_m: '#b05f6b',
   louse_red: '#c26d4f',
   boss_maw: '#a83f57',
+  shelled_parasite: '#8f9a5c',
+  byrd: '#5c8fb0',
+  chosen: '#b05c9a',
+  snake_plant: '#4f9a4f',
+  centurion: '#9a6f4f',
+  gremlin_nob: '#b0455c',
+  slime_king: '#3f8a6a',
 };
 
 /** Shared card face used by the hand, rewards, and the campfire deck list. */

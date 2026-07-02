@@ -24,9 +24,12 @@ export type RunPhase =
 
 export const ACT_COUNT = 3;
 
-/** Enemy max-HP multiplier per act (placeholder scaling until acts get their own rosters). */
+/**
+ * Enemy max-HP multiplier per act. Acts 1-2 have native rosters (no scaling);
+ * act 3 reuses the act 2 roster with a bump until it gets its own on Day 9.
+ */
 export function actHpScale(act: number): number {
-  return 1 + 0.35 * (act - 1);
+  return act >= 3 ? 1.25 : 1;
 }
 
 export interface RunStats {
@@ -53,34 +56,74 @@ export interface RunSave {
   stats: RunStats;
 }
 
-/** Normal encounter pools by map depth (row <= maxRow picks that tier). */
-const NORMAL_TIERS: { maxRow: number; pool: string[][] }[] = [
-  { maxRow: 2, pool: [['jaw_worm'], ['cultist'], ['acid_slime'], ['louse_red'], ['spike_slime_m']] },
-  {
-    maxRow: 5,
-    pool: [
-      ['louse_red', 'louse_red'],
-      ['acid_slime', 'spike_slime_m'],
-      ['jaw_worm', 'louse_red'],
-    ],
-  },
-  {
-    maxRow: Infinity,
-    pool: [
-      ['jaw_worm', 'cultist'],
-      ['acid_slime', 'acid_slime'],
-      ['spike_slime_m', 'spike_slime_m'],
-    ],
-  },
-];
+interface ActEncounters {
+  /** Normal pools by map depth (row <= maxRow picks that tier). */
+  normal: { maxRow: number; pool: string[][] }[];
+  elite: string[][];
+  boss: string[][];
+}
 
-const ELITE_POOL: string[][] = [
-  ['jaw_worm', 'jaw_worm'],
-  ['cultist', 'cultist'],
-  ['louse_red', 'louse_red', 'louse_red'],
-];
+const ACT_1: ActEncounters = {
+  normal: [
+    { maxRow: 2, pool: [['jaw_worm'], ['cultist'], ['acid_slime'], ['louse_red'], ['spike_slime_m']] },
+    {
+      maxRow: 5,
+      pool: [
+        ['louse_red', 'louse_red'],
+        ['acid_slime', 'spike_slime_m'],
+        ['jaw_worm', 'louse_red'],
+      ],
+    },
+    {
+      maxRow: Infinity,
+      pool: [
+        ['jaw_worm', 'cultist'],
+        ['acid_slime', 'acid_slime'],
+        ['spike_slime_m', 'spike_slime_m'],
+      ],
+    },
+  ],
+  elite: [
+    ['jaw_worm', 'jaw_worm'],
+    ['cultist', 'cultist'],
+    ['louse_red', 'louse_red', 'louse_red'],
+  ],
+  boss: [['boss_maw']],
+};
 
-const BOSS_POOL: string[][] = [['boss_maw']];
+const ACT_2: ActEncounters = {
+  normal: [
+    { maxRow: 2, pool: [['shelled_parasite'], ['chosen'], ['byrd', 'byrd'], ['centurion']] },
+    {
+      maxRow: 5,
+      pool: [
+        ['byrd', 'byrd', 'byrd'],
+        ['shelled_parasite', 'byrd'],
+        ['snake_plant'],
+        ['centurion', 'chosen'],
+      ],
+    },
+    {
+      maxRow: Infinity,
+      pool: [
+        ['snake_plant', 'byrd'],
+        ['chosen', 'chosen'],
+        ['shelled_parasite', 'centurion'],
+      ],
+    },
+  ],
+  elite: [['gremlin_nob'], ['snake_plant', 'snake_plant']],
+  boss: [['slime_king']],
+};
+
+/** Act 3 placeholder: act 2 roster, harder mixes, HP scaled via actHpScale. */
+const ACT_3: ActEncounters = {
+  normal: ACT_2.normal.map((tier) => ({ ...tier })),
+  elite: [['gremlin_nob', 'byrd'], ['chosen', 'chosen', 'byrd']],
+  boss: [['boss_maw']],
+};
+
+const ACTS: Record<number, ActEncounters> = { 1: ACT_1, 2: ACT_2, 3: ACT_3 };
 
 const REST_HEAL_RATIO = 0.3;
 const REWARD_CHOICES = 3;
@@ -235,9 +278,10 @@ export class Run {
   }
 
   private encounterPool(kind: NodeKind, row: number): string[][] {
-    if (kind === 'boss') return BOSS_POOL;
-    if (kind === 'elite') return ELITE_POOL;
-    return NORMAL_TIERS.find((t) => row <= t.maxRow)!.pool;
+    const act = ACTS[this.act] ?? ACT_3;
+    if (kind === 'boss') return act.boss;
+    if (kind === 'elite') return act.elite;
+    return act.normal.find((t) => row <= t.maxRow)!.pool;
   }
 
   /** Call after the battle reaches victory/defeat; moves the run forward. */
