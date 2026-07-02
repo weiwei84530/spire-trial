@@ -77,16 +77,17 @@ const ACT_1: ActEncounters = {
     {
       maxRow: Infinity,
       pool: [
-        ['jaw_worm', 'cultist'],
+        ['louse_red', 'louse_red', 'louse_red'],
         ['acid_slime', 'acid_slime'],
         ['spike_slime_m', 'spike_slime_m'],
       ],
     },
   ],
+  // Measured at 49-69 avg HP loss on a starter deck: real elite threats.
   elite: [
     ['jaw_worm', 'jaw_worm'],
     ['cultist', 'cultist'],
-    ['louse_red', 'louse_red', 'louse_red'],
+    ['jaw_worm', 'cultist'],
   ],
   boss: [['boss_maw']],
 };
@@ -112,7 +113,8 @@ const ACT_2: ActEncounters = {
       ],
     },
   ],
-  elite: [['gremlin_nob'], ['snake_plant', 'snake_plant']],
+  // snake_plant x2 simulated at a 0% win rate — never ship that again.
+  elite: [['gremlin_nob'], ['chosen', 'chosen']],
   boss: [['slime_king']],
 };
 

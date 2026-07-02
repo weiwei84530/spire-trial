@@ -166,10 +166,10 @@ define({
 define({
   id: 'byrd',
   name: 'Byrd',
-  hp: [26, 30],
+  hp: [24, 28],
   moves: [
     { id: 'peck', intent: 'attack', effects: [{ kind: 'damage', amount: 1, times: 5 }] },
-    { id: 'swoop', intent: 'attack', effects: [{ kind: 'damage', amount: 12 }] },
+    { id: 'swoop', intent: 'attack', effects: [{ kind: 'damage', amount: 10 }] },
     {
       id: 'caw',
       intent: 'buff',
@@ -191,7 +191,7 @@ define({
   name: 'Chosen',
   hp: [50, 55],
   moves: [
-    { id: 'zap', intent: 'attack', effects: [{ kind: 'damage', amount: 14 }] },
+    { id: 'zap', intent: 'attack', effects: [{ kind: 'damage', amount: 12 }] },
     {
       id: 'debilitate',
       intent: 'debuff',
@@ -217,7 +217,7 @@ define({
   name: 'Snake Plant',
   hp: [60, 65],
   moves: [
-    { id: 'chomp', intent: 'attack', effects: [{ kind: 'damage', amount: 7, times: 3 }] },
+    { id: 'chomp', intent: 'attack', effects: [{ kind: 'damage', amount: 6, times: 3 }] },
     {
       id: 'enfeebling_spores',
       intent: 'debuff',
@@ -242,7 +242,7 @@ define({
   hp: [56, 60],
   moves: [
     { id: 'slash', intent: 'attack', effects: [{ kind: 'damage', amount: 12 }] },
-    { id: 'heavy_slash', intent: 'attack', effects: [{ kind: 'damage', amount: 16 }] },
+    { id: 'heavy_slash', intent: 'attack', effects: [{ kind: 'damage', amount: 14 }] },
     { id: 'fury', intent: 'defend', effects: [{ kind: 'block', amount: 15 }] },
   ],
   ai: {
@@ -367,7 +367,7 @@ define({
       intent: 'debuff',
       effects: [{ kind: 'applyStatus', status: 'poison', stacks: 4, target: 'enemy' }],
     },
-    { id: 'smash', intent: 'attack', effects: [{ kind: 'damage', amount: 22 }] },
+    { id: 'smash', intent: 'attack', effects: [{ kind: 'damage', amount: 20 }] },
   ],
   ai: {
     type: 'weighted',
@@ -384,8 +384,8 @@ define({
   name: 'Darkling',
   hp: [48, 52],
   moves: [
-    { id: 'nip', intent: 'attack', effects: [{ kind: 'damage', amount: 11 }] },
-    { id: 'chomp', intent: 'attack', effects: [{ kind: 'damage', amount: 9, times: 2 }] },
+    { id: 'nip', intent: 'attack', effects: [{ kind: 'damage', amount: 10 }] },
+    { id: 'chomp', intent: 'attack', effects: [{ kind: 'damage', amount: 8, times: 2 }] },
     { id: 'harden', intent: 'defend', effects: [{ kind: 'block', amount: 9 }] },
   ],
   ai: {
@@ -419,7 +419,7 @@ define({
   // Final boss: enrages at half HP.
   id: 'the_shadow',
   name: 'The Shadow',
-  hp: [150, 160],
+  hp: [140, 150],
   moves: [
     {
       id: 'gather_darkness',
@@ -438,12 +438,12 @@ define({
         { kind: 'applyStatus', status: 'frail', stacks: 2, target: 'enemy' },
       ],
     },
-    { id: 'oblivion', intent: 'attack', effects: [{ kind: 'damage', amount: 24 }] },
+    { id: 'oblivion', intent: 'attack', effects: [{ kind: 'damage', amount: 22 }] },
   ],
   ai: { type: 'sequence', moves: ['gather_darkness', 'dark_slash', 'void_grasp', 'oblivion'] },
   onHalfHp: {
     effects: [
-      { kind: 'applyStatus', status: 'strength', stacks: 4, target: 'self' },
+      { kind: 'applyStatus', status: 'strength', stacks: 3, target: 'self' },
       { kind: 'applyStatus', status: 'ritual', stacks: 2, target: 'self' },
       { kind: 'block', amount: 15 },
     ],
@@ -465,7 +465,7 @@ define({
         { kind: 'block', amount: 9 },
       ],
     },
-    { id: 'slam', intent: 'attack', effects: [{ kind: 'damage', amount: 14 }] },
+    { id: 'slam', intent: 'attack', effects: [{ kind: 'damage', amount: 16 }] },
     { id: 'double_bite', intent: 'attack', effects: [{ kind: 'damage', amount: 6, times: 2 }] },
   ],
   ai: { type: 'sequence', moves: ['roar', 'slam', 'double_bite'] },

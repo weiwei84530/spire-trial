@@ -21,7 +21,7 @@ const STATUS_VALUE: Record<string, number> = {
 };
 
 /** Total damage the enemies intend to deal this turn. */
-function incomingDamage(battle: Battle): number {
+export function incomingDamage(battle: Battle): number {
   let total = 0;
   for (const enemy of battle.aliveEnemies()) {
     const intent = battle.intentOf(enemy);
@@ -64,8 +64,10 @@ function scoreCard(battle: Battle, handIndex: number, target: number): number {
         break;
       }
       case 'block': {
-        // Block is only worth what it actually prevents this turn.
-        score += Math.min(calcBlockGain(effect.amount, player), unblocked) * 1.2;
+        // Block is only worth what it actually prevents this turn; when the
+        // player is low it becomes worth more than trading damage.
+        const pressure = player.hp <= player.maxHp * 0.4 ? 1.8 : 1.2;
+        score += Math.min(calcBlockGain(effect.amount, player), unblocked) * pressure;
         break;
       }
       case 'applyStatus':

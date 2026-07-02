@@ -45,14 +45,20 @@ table('Act 1 — starter deck', makeStarterDeck, 80, [
   ['cultist'],
   ['acid_slime', 'spike_slime_m'],
   ['jaw_worm', 'cultist'],
+  ['jaw_worm', 'jaw_worm'],
+  ['cultist', 'cultist'],
+  ['louse_red', 'louse_red', 'louse_red'],
   ['boss_maw'],
 ]);
 
 table('Act 2 — mid-run deck', midRunDeck, 70, [
   ['shelled_parasite'],
   ['chosen'],
+  ['chosen', 'chosen'],
   ['byrd', 'byrd', 'byrd'],
   ['snake_plant'],
+  ['snake_plant', 'byrd'],
+  ['snake_plant', 'snake_plant'],
   ['gremlin_nob'],
   ['slime_king'],
 ]);

@@ -61,11 +61,11 @@ describe('day 9 mechanics', () => {
       3,
     );
     const boss = battle.state.enemies[0]!;
-    expect(boss.maxHp).toBeGreaterThanOrEqual(150);
+    expect(boss.maxHp).toBeGreaterThanOrEqual(140);
     boss.hp = Math.floor(boss.maxHp / 2) + 4;
     battle.playCard(0, 0); // strike drops it to/below half
     expect(boss.phaseTriggered).toBe(true);
-    expect(boss.statuses.strength).toBe(4);
+    expect(boss.statuses.strength).toBe(3);
     expect(boss.statuses.ritual).toBe(2);
     expect(boss.nextMoveId).toBe('oblivion');
     const strengthAfterFirst = boss.statuses.strength;

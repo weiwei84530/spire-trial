@@ -5,7 +5,7 @@
  */
 import { getCardDef } from '../engine/cards';
 import { Run } from '../engine/run';
-import { greedyPolicy } from './policy';
+import { greedyPolicy, incomingDamage } from './policy';
 
 export interface RunSimResult {
   runs: number;
@@ -18,24 +18,128 @@ export interface RunSimResult {
 
 const RARITY_SCORE: Record<string, number> = { rare: 3, uncommon: 2, common: 1 };
 
-/** Picks the offered card with the highest rarity (simple but serviceable). */
-function pickBestReward(cards: string[]): string | null {
-  if (cards.length === 0) return null;
-  return [...cards].sort(
-    (a, b) => (RARITY_SCORE[getCardDef(b).rarity] ?? 0) - (RARITY_SCORE[getCardDef(a).rarity] ?? 0),
-  )[0]!;
+/**
+ * How much each card improves a greedy-policy deck, on top of its rarity.
+ * Positive: scaling/defense the policy uses well. Negative: cards it misplays
+ * (self-damage, wound generators) or that dilute a small consistent deck.
+ */
+const PICK_BONUS: Record<string, number> = {
+  inflame: 4,
+  demon_form: 5,
+  footwork: 4,
+  metallicize: 4,
+  impervious: 4,
+  caltrops: 3,
+  noxious_fumes: 3,
+  shrug_it_off: 3,
+  backflip: 3,
+  disarm: 3,
+  bludgeon: 3,
+  uppercut: 3,
+  dash: 3,
+  iron_wave: 2,
+  pommel_strike: 2,
+  quick_slash: 2,
+  shockwave: 2,
+  anger: -1,
+  whirlwind: -1,
+  barricade: -2,
+  berserk: -2,
+  wild_strike: -2,
+  reckless_charge: -2,
+  hemokinesis: -2,
+  bloodletting: -3,
+};
+
+/** Picks the best offered card, or skips when the deck is already big and the offer is weak. */
+function pickBestReward(cards: string[], deckSize: number): string | null {
+  let best: string | null = null;
+  let bestScore = -Infinity;
+  for (const id of cards) {
+    const score = (RARITY_SCORE[getCardDef(id).rarity] ?? 0) + (PICK_BONUS[id] ?? 0);
+    if (score > bestScore) {
+      bestScore = score;
+      best = id;
+    }
+  }
+  // A bloated deck draws its engine cards less often; only take real upgrades.
+  if (deckSize >= 22 && bestScore < 4) return null;
+  return best;
+}
+
+/** Simple potion heuristics: spend them when they clearly swing the battle. */
+function maybeUsePotions(run: Run): void {
+  const battle = run.battle;
+  if (!battle) return;
+  for (let i = run.potions.length - 1; i >= 0; i--) {
+    if (run.phase !== 'battle' || battle.state.phase !== 'playerTurn') return;
+    const id = run.potions[i]!;
+    const player = battle.state.player;
+    const unblocked = Math.max(0, incomingDamage(battle) - player.block);
+    const totalEnemyHp = battle.aliveEnemies().reduce((s, e) => s + e.hp, 0);
+    const bigFight = totalEnemyHp >= 80;
+    switch (id) {
+      case 'healing_potion':
+        if (player.hp <= player.maxHp * 0.35) run.usePotion(i);
+        break;
+      case 'block_potion':
+        if (unblocked >= 10 && player.hp - unblocked <= player.maxHp * 0.35) run.usePotion(i);
+        break;
+      case 'strength_potion':
+        if (bigFight && battle.state.turn <= 2) run.usePotion(i);
+        break;
+      case 'fire_potion': {
+        const kill = battle.state.enemies.findIndex((e) => e.hp > 0 && e.hp + e.block <= 20);
+        if (kill >= 0) {
+          run.usePotion(i, kill);
+        } else if (bigFight && player.hp <= player.maxHp * 0.5) {
+          let idx = -1;
+          let hi = 0;
+          battle.state.enemies.forEach((e, j) => {
+            if (e.hp > hi) {
+              hi = e.hp;
+              idx = j;
+            }
+          });
+          run.usePotion(i, idx);
+        }
+        break;
+      }
+      case 'weak_potion': {
+        // Shut down the hardest hitter, but only if it will live a while.
+        let idx = -1;
+        let hardest = 11;
+        battle.state.enemies.forEach((e, j) => {
+          if (e.hp <= 20) return;
+          const intent = battle.intentOf(e);
+          const dmg = (intent.damage ?? 0) * (intent.hits ?? 1);
+          if (dmg > hardest) {
+            hardest = dmg;
+            idx = j;
+          }
+        });
+        if (idx >= 0) run.usePotion(i, idx);
+        break;
+      }
+    }
+  }
 }
 
 function playBattle(run: Run): void {
-  const battle = run.battle!;
   let safety = 2000;
-  while (battle.state.phase === 'playerTurn' && safety-- > 0) {
+  while (run.phase === 'battle' && safety-- > 0) {
+    const battle = run.battle!;
+    if (battle.state.phase !== 'playerTurn') {
+      run.resolveBattle();
+      return;
+    }
+    maybeUsePotions(run);
+    if (run.phase !== 'battle' || battle.state.phase !== 'playerTurn') continue;
     const action = greedyPolicy(battle);
     if (action.type === 'end') battle.endTurn();
     else battle.playCard(action.index, action.target);
   }
   if (safety <= 0) throw new Error('battle did not terminate');
-  run.resolveBattle();
 }
 
 export function simulateFullRuns(runs: number, baseSeed = 1): RunSimResult {
@@ -70,7 +174,7 @@ export function simulateFullRuns(runs: number, baseSeed = 1): RunSimResult {
           break;
         case 'reward':
         case 'actTransition':
-          run.pickReward(pickBestReward(run.reward!.cards));
+          run.pickReward(pickBestReward(run.reward!.cards, run.deck.length));
           break;
         case 'rest': {
           const upIdx = run.deck.findIndex((_, j) => run.canUpgrade(j));
