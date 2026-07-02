@@ -191,25 +191,36 @@ export class App {
     // Dev hook: lets browser-side tests drive the app without physical clicks.
     (window as unknown as { __app: App }).__app = this;
     this.pendingResume = loadRun();
-    if (this.pendingResume) {
-      this.renderResumePrompt();
-    } else {
-      this.newRun();
-    }
+    this.renderTitle();
   }
 
-  private renderResumePrompt(): void {
-    const save = this.pendingResume!;
+  /** Title screen; doubles as the resume prompt when a save exists. */
+  private renderTitle(): void {
+    const save = this.pendingResume;
+    const saveInfo = save
+      ? `<p class="save-info">發現進行中的冒險：第 ${save.act} 幕・樓層 ${save.visited.length}／${save.map.rows.length}，
+         ❤ ${save.hp}/${save.maxHp}，💰 ${save.gold}，牌組 ${save.deck.length} 張</p>`
+      : '';
+    const buttons = save
+      ? `<button class="primary-btn" data-resume>繼續冒險</button>
+         <button class="ghost-btn" data-abandon>放棄存檔，重新開始</button>`
+      : '<button class="primary-btn" data-start>開始冒險</button>';
     this.root.innerHTML = `
       <div class="game">
-        <div class="dialog-screen center">
-          <h2>發現進行中的冒險</h2>
-          <p>樓層 ${save.visited.length}／${save.map.rows.length}，❤ ${save.hp}/${save.maxHp}，💰 ${save.gold}，牌組 ${save.deck.length} 張</p>
-          <button class="primary-btn" data-resume>繼續冒險</button>
-          <button class="ghost-btn" data-abandon>放棄，重新開始</button>
+        <div class="dialog-screen center title-screen">
+          <div class="title-emblem">🗼</div>
+          <h1 class="game-title">尖塔試煉</h1>
+          <p class="game-subtitle">卡牌構築・三幕地城・一次生命</p>
+          ${saveInfo}
+          ${buttons}
         </div>
       </div>`;
+    this.root.querySelector('[data-start]')?.addEventListener('click', () => {
+      sound.play('click');
+      this.newRun();
+    });
     this.root.querySelector('[data-resume]')?.addEventListener('click', () => {
+      sound.play('click');
       this.run = Run.fromSave(this.pendingResume!);
       this.pendingResume = null;
       this.render();
@@ -769,8 +780,12 @@ export class App {
     ];
     return `
       <div class="dialog-screen center">
-        <h2>${phase === 'victory' ? '🎉 通過第一幕！' : '💀 你死了…'}</h2>
-        <p>${phase === 'victory' ? '擊敗頭目，本輪完成。' : `倒在樓層 ${this.run.visited.length}。`}</p>
+        <h2>${phase === 'victory' ? '🏆 征服尖塔！' : '💀 你死了…'}</h2>
+        <p>${
+          phase === 'victory'
+            ? '三幕試煉全數通過，塔頂的黑暗已被驅散。'
+            : `倒在第 ${this.run.act} 幕・樓層 ${this.run.visited.length}。`
+        }</p>
         <table class="stats-table">
           ${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}
         </table>
