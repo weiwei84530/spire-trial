@@ -11,7 +11,15 @@ import { Run, type RunSave } from '../engine/run';
 import type { MapNode, NodeKind } from '../engine/map';
 import type { CardDef, CardInstance, EnemyState } from '../engine/types';
 import { cardText, CARD_TYPE_NAMES, intentText, STATUS_NAMES } from './describe';
+import { sound } from './sound';
 import { clearSave, loadRun, saveRun } from './storage';
+
+/** Pre-action HP/block snapshot, diffed after the action to drive hit FX. */
+interface BattleSnapshot {
+  enemies: { hp: number; block: number }[];
+  playerHp: number;
+  playerBlock: number;
+}
 
 const NODE_ICONS: Record<NodeKind, string> = {
   battle: '⚔',
@@ -231,11 +239,71 @@ export class App {
     this.render();
   }
 
-  private battleActionDone(): void {
-    if (this.run.battle && this.run.battle.state.phase !== 'playerTurn') {
-      this.run.resolveBattle();
-    }
+  private battleActionDone(before?: BattleSnapshot | null): void {
+    const battle = this.run.battle;
+    const ended = battle && battle.state.phase !== 'playerTurn' ? battle.state.phase : null;
+    if (battle && ended) this.run.resolveBattle();
     this.render();
+    if (before && !ended) this.playBattleFx(before);
+    if (ended === 'victory') sound.play('victory');
+    if (ended === 'defeat') sound.play('defeat');
+  }
+
+  private snapshotBattle(): BattleSnapshot | null {
+    const battle = this.run.battle;
+    if (!battle) return null;
+    return {
+      enemies: battle.state.enemies.map((e) => ({ hp: e.hp, block: e.block })),
+      playerHp: battle.state.player.hp,
+      playerBlock: battle.state.player.block,
+    };
+  }
+
+  /** Diff the fresh DOM against the pre-action snapshot: floats, shakes, sounds. */
+  private playBattleFx(before: BattleSnapshot): void {
+    const battle = this.run.battle;
+    if (!battle || this.run.phase !== 'battle') return;
+    let anyHit = false;
+    battle.state.enemies.forEach((e, i) => {
+      const prev = before.enemies[i];
+      const el = this.root.querySelector(`[data-enemy="${i}"]`);
+      if (!prev || !el) return;
+      const lost = prev.hp - e.hp;
+      if (lost > 0) {
+        anyHit = true;
+        el.classList.add('hit');
+        if (e.hp <= 0) el.classList.add('just-died');
+        this.floatText(el, `-${lost}`, 'dmg');
+      }
+    });
+    if (anyHit) sound.play('hit');
+
+    const player = battle.state.player;
+    const panel = this.root.querySelector('.player-panel');
+    if (!panel) return;
+    const lostHp = before.playerHp - player.hp;
+    if (lostHp > 0) {
+      panel.classList.add('hit');
+      this.floatText(panel, `-${lostHp}`, 'dmg');
+      sound.play('hurt');
+      // Big hits rattle the whole arena.
+      if (lostHp >= 15) this.root.querySelector('.battle')?.classList.add('shake');
+    } else if (lostHp < 0) {
+      this.floatText(panel, `+${-lostHp}`, 'heal');
+      sound.play('heal');
+    }
+    const gainedBlock = player.block - before.playerBlock;
+    if (gainedBlock > 0) {
+      this.floatText(panel, `+${gainedBlock}`, 'block');
+      sound.play('block');
+    }
+  }
+
+  private floatText(host: Element, text: string, kind: 'dmg' | 'block' | 'heal'): void {
+    const span = document.createElement('span');
+    span.className = `float-text ${kind}`;
+    span.textContent = text;
+    host.appendChild(span);
   }
 
   /** UI-level playability: also greys out X-cost cards that would fizzle at 0 energy. */
@@ -264,8 +332,10 @@ export class App {
     }
     if (battle.canPlay(index)) {
       this.selected = null;
+      const before = this.snapshotBattle();
+      sound.play('card');
       battle.playCard(index);
-      this.battleActionDone();
+      this.battleActionDone(before);
     }
   }
 
@@ -275,18 +345,30 @@ export class App {
     if (this.potionSelected !== null) {
       const enemy = battle.state.enemies[enemyIndex];
       if (enemy && enemy.hp > 0) {
+        const before = this.snapshotBattle();
+        sound.play('potion');
         this.run.usePotion(this.potionSelected, enemyIndex);
         this.potionSelected = null;
-        this.render();
+        this.afterPotion(before);
       }
       return;
     }
     if (this.selected === null) return;
     if (battle.canPlay(this.selected, enemyIndex)) {
+      const before = this.snapshotBattle();
+      sound.play('card');
       battle.playCard(this.selected, enemyIndex);
       this.selected = null;
-      this.battleActionDone();
+      this.battleActionDone(before);
     }
+  }
+
+  /** Run.usePotion resolves finished battles itself, so render then diff. */
+  private afterPotion(before: BattleSnapshot | null): void {
+    this.render();
+    if (this.run.phase === 'battle' && before) this.playBattleFx(before);
+    else if (this.run.phase === 'defeat') sound.play('defeat');
+    else if (this.run.phase !== 'battle') sound.play('victory');
   }
 
   private onPotionClick(index: number): void {
@@ -300,17 +382,20 @@ export class App {
       this.render();
       return;
     }
+    const before = this.snapshotBattle();
+    sound.play('potion');
     this.run.usePotion(index);
     this.potionSelected = null;
-    this.render();
+    this.afterPotion(before);
   }
 
   private onEndTurn(): void {
     const battle = this.run.battle;
     if (!battle || battle.state.phase !== 'playerTurn') return;
     this.selected = null;
+    const before = this.snapshotBattle();
     battle.endTurn();
-    this.battleActionDone();
+    this.battleActionDone(before);
   }
 
   // --- rendering ---
@@ -375,7 +460,10 @@ export class App {
         <span>🂠 牌組 ${this.run.deck.length}</span>
         <span class="chip-group">${relics}</span>
         <span class="chip-group">${potions}</span>
-        <span class="top-bar-right">第 ${this.run.act} 幕・樓層 ${floor}/${this.run.map.rows.length}</span>
+        <span class="top-bar-right">
+          <span class="mute-chip" data-mute title="音效開關">${sound.muted ? '🔇' : '🔊'}</span>
+          第 ${this.run.act} 幕・樓層 ${floor}/${this.run.map.rows.length}
+        </span>
       </div>`;
   }
 
@@ -696,7 +784,14 @@ export class App {
         el.addEventListener('click', () => fn(el));
       });
     };
-    on('[data-node]', (el) => this.onNodeClick(el.dataset.node!));
+    on('[data-node]', (el) => {
+      sound.play('click');
+      this.onNodeClick(el.dataset.node!);
+    });
+    on('[data-mute]', () => {
+      sound.toggle();
+      this.render();
+    });
     on('[data-card]', (el) => this.onCardClick(Number(el.dataset.card)));
     on('[data-enemy]', (el) => this.onEnemyClick(Number(el.dataset.enemy)));
     on('.end-turn', () => this.onEndTurn());
