@@ -6,6 +6,16 @@ const DECAYING: readonly StatusId[] = ['vulnerable', 'weak', 'frail'];
 /** Statuses where negative stacks are meaningful (e.g. strength loss from Disarm-like cards). */
 const SIGNED: readonly StatusId[] = ['strength', 'dexterity'];
 
+/**
+ * End-of-turn block from metallicize. Flat gain: not modified by dexterity
+ * or frail (documented in docs/DESIGN.md).
+ */
+export function tickMetallicize(actor: Actor): number {
+  const stacks = getStatus(actor, 'metallicize');
+  if (stacks > 0) actor.block += stacks;
+  return stacks;
+}
+
 export function getStatus(actor: Actor, id: StatusId): number {
   return actor.statuses[id] ?? 0;
 }

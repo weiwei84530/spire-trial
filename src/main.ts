@@ -19,7 +19,10 @@ let safety = 200;
 while (battle.state.phase === 'playerTurn' && safety-- > 0) {
   const target = battle.state.enemies.findIndex((e) => e.hp > 0);
   const playable = battle.state.player.hand
-    .map((card, i) => ({ i, cost: resolveCard(card).cost }))
+    .map((card, i) => {
+      const cost = resolveCard(card).cost;
+      return { i, cost: cost === 'x' ? battle.state.player.energy : cost };
+    })
     .filter(({ i }) => battle.canPlay(i, target) || battle.canPlay(i))
     .sort((a, b) => b.cost - a.cost);
   if (playable.length === 0) {

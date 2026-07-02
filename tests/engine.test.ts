@@ -318,10 +318,142 @@ describe('card upgrades', () => {
     expect(CARDS.strike!.effects).toEqual([{ kind: 'damage', amount: 6 }]);
   });
 
-  it('every card upgrade changes something', () => {
+  it('every playable card has an upgrade', () => {
     for (const def of Object.values(CARDS)) {
+      if (def.unplayable) continue; // status/curse cards do not upgrade
       expect(def.upgrade, `${def.id} needs an upgrade`).toBeDefined();
     }
+  });
+});
+
+describe('Day 2 mechanics', () => {
+  it('unplayable status/curse cards cannot be played', () => {
+    const battle = new Battle({
+      seed: 20,
+      deck: [makeCard('wound'), makeCard('injury'), ...deckOf('strike', 3)],
+      playerHp: 70,
+      playerMaxHp: 70,
+      enemies: ['jaw_worm'],
+    });
+    const woundIdx = findInHand(battle, 'wound');
+    const injuryIdx = findInHand(battle, 'injury');
+    expect(battle.canPlay(woundIdx, 0)).toBe(false);
+    expect(battle.canPlay(injuryIdx, 0)).toBe(false);
+    expect(() => battle.playCard(woundIdx, 0)).toThrow();
+  });
+
+  it('burn deals 2 damage (respecting block) if held at end of turn', () => {
+    const battle = new Battle({
+      seed: 21,
+      deck: [makeCard('burn'), ...deckOf('defend', 4)],
+      playerHp: 70,
+      playerMaxHp: 70,
+      enemies: ['cultist'], // turn 1: incantation, no attack
+    });
+    battle.endTurn();
+    expect(battle.state.player.hp).toBe(68);
+  });
+
+  it('whirlwind spends all energy and hits once per point', () => {
+    const battle = new Battle({
+      seed: 22,
+      deck: [makeCard('whirlwind'), ...deckOf('defend', 4)],
+      playerHp: 70,
+      playerMaxHp: 70,
+      enemies: ['jaw_worm'],
+    });
+    const enemy = battle.state.enemies[0]!;
+    const hp0 = enemy.hp;
+    const idx = findInHand(battle, 'whirlwind');
+    expect(battle.canPlay(idx)).toBe(true); // x-cost is always affordable
+    battle.playCard(idx);
+    expect(battle.state.player.energy).toBe(0);
+    expect(enemy.hp).toBe(hp0 - 15); // 5 damage x 3 energy
+  });
+
+  it('innate cards are always in the opening hand', () => {
+    for (let seed = 0; seed < 30; seed++) {
+      const battle = new Battle({
+        seed,
+        deck: [...makeStarterDeck(), makeCard('dramatic_entrance')], // 11 cards, draw 5
+        playerHp: 70,
+        playerMaxHp: 70,
+        enemies: ['jaw_worm'],
+      });
+      expect(battle.state.player.hand.some((c) => c.defId === 'dramatic_entrance')).toBe(true);
+    }
+  });
+
+  it('metallicize grants block at end of turn that survives into the enemy turn', () => {
+    const battle = new Battle({
+      seed: 23,
+      deck: [makeCard('metallicize'), ...deckOf('defend', 4)],
+      playerHp: 70,
+      playerMaxHp: 70,
+      enemies: ['cultist'],
+    });
+    battle.playCard(findInHand(battle, 'metallicize'));
+    battle.endTurn(); // metallicize: +3 block; cultist casts incantation (no damage)
+    const hp0 = battle.state.player.hp;
+    battle.endTurn(); // +3 block again, dark strike hits 6+3=9 -> 6 HP through block
+    expect(battle.state.player.hp).toBe(hp0 - 6);
+  });
+
+  it('thorns damages the attacker once per hit', () => {
+    const battle = new Battle({
+      seed: 24,
+      deck: [makeCard('twin_strike'), ...deckOf('defend', 4)],
+      playerHp: 70,
+      playerMaxHp: 70,
+      enemies: ['jaw_worm'],
+    });
+    addStatus(battle.state.enemies[0]!, 'thorns', 3);
+    battle.playCard(findInHand(battle, 'twin_strike'), 0);
+    expect(battle.state.player.hp).toBe(70 - 6); // 3 thorns x 2 hits
+  });
+
+  it('corrosive spit adds a wound to the discard pile', () => {
+    const battle = new Battle({
+      seed: 25,
+      // 10 cards so the next draw does not reshuffle the discard pile away.
+      deck: deckOf('defend', 10),
+      playerHp: 70,
+      playerMaxHp: 70,
+      enemies: ['acid_slime'],
+    });
+    battle.state.enemies[0]!.nextMoveId = 'corrosive_spit';
+    battle.endTurn();
+    expect(battle.state.player.discardPile.some((c) => c.defId === 'wound')).toBe(true);
+  });
+
+  it('intentOf previews modified attack damage', () => {
+    const battle = new Battle({
+      seed: 26,
+      deck: deckOf('defend'),
+      playerHp: 70,
+      playerMaxHp: 70,
+      enemies: ['cultist'],
+    });
+    const enemy = battle.state.enemies[0]!;
+    expect(battle.intentOf(enemy)).toEqual({ kind: 'buff' }); // incantation
+    battle.endTurn();
+    // dark strike: 6 base + 3 strength from ritual
+    expect(battle.intentOf(enemy)).toEqual({ kind: 'attack', damage: 9, hits: 1 });
+  });
+});
+
+describe('balance simulator', () => {
+  it('greedy policy reliably beats a single weak enemy', async () => {
+    const { simulate } = await import('../src/sim/simulate');
+    const result = simulate({
+      deck: makeStarterDeck,
+      enemies: ['jaw_worm'],
+      runs: 100,
+      baseSeed: 42,
+    });
+    expect(result.winRate).toBeGreaterThan(0.95);
+    expect(result.avgTurns).toBeGreaterThan(1);
+    expect(result.avgHpLoss).toBeLessThan(40);
   });
 });
 
@@ -359,8 +491,10 @@ describe('simulation smoke test', () => {
       expect(['victory', 'defeat']).toContain(battle.state.phase);
 
       const p = battle.state.player;
-      // Card conservation: nothing is created or lost.
-      expect(p.hand.length + p.drawPile.length + p.discardPile.length + p.exhaustPile.length).toBe(10);
+      // Card conservation: cards may be added mid-battle (wounds) but never lost.
+      expect(
+        p.hand.length + p.drawPile.length + p.discardPile.length + p.exhaustPile.length,
+      ).toBeGreaterThanOrEqual(10);
       expect(p.hp).toBeGreaterThanOrEqual(0);
       expect(p.energy).toBeGreaterThanOrEqual(0);
       for (const e of battle.state.enemies) {

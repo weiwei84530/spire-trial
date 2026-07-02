@@ -69,7 +69,7 @@ define({
       intent: 'attack',
       effects: [
         { kind: 'damage', amount: 7 },
-        { kind: 'applyStatus', status: 'weak', stacks: 1, target: 'enemy' },
+        { kind: 'addCard', card: 'wound', count: 1, destination: 'discardPile' },
       ],
     },
     {

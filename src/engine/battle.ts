@@ -1,6 +1,6 @@
 import { Rng } from './rng';
-import type { BattleState, CardInstance, Effect, EnemyState, PlayerState } from './types';
-import { resolveCard } from './cards';
+import type { BattleState, CardInstance, Effect, EnemyState, IntentKind, PlayerState } from './types';
+import { makeCard, resolveCard } from './cards';
 import { chooseMove, getEnemyDef, getMove, spawnEnemy } from './enemies';
 import {
   addStatus,
@@ -9,8 +9,17 @@ import {
   dealDamage,
   decayStatuses,
   getStatus,
+  tickMetallicize,
   tickPoison,
 } from './statuses';
+
+/** What an enemy is about to do, with damage precomputed for display and AI. */
+export interface IntentPreview {
+  kind: IntentKind;
+  /** Damage per hit after all modifiers, if the move attacks. */
+  damage?: number;
+  hits?: number;
+}
 
 export interface BattleConfig {
   seed: number;
@@ -47,9 +56,29 @@ export class Battle {
       discardPile: [],
       exhaustPile: [],
     };
+    // Innate cards go on top of the draw pile (drawn from the end).
+    player.drawPile.sort(
+      (a, b) => Number(resolveCard(a).innate ?? false) - Number(resolveCard(b).innate ?? false),
+    );
     const enemies = config.enemies.map((id) => spawnEnemy(id, this.rng));
     this.state = { turn: 1, phase: 'playerTurn', player, enemies, log: [] };
     this.startPlayerTurn();
+  }
+
+  /** Resolves an enemy's next move into display/AI-friendly numbers. */
+  intentOf(enemy: EnemyState): IntentPreview {
+    const move = getMove(getEnemyDef(enemy.defId), enemy.nextMoveId);
+    for (const effect of move.effects) {
+      if (effect.kind === 'damage') {
+        const times = effect.times === 'x' ? 1 : (effect.times ?? 1);
+        return {
+          kind: move.intent,
+          damage: calcAttackDamage(effect.amount, enemy, this.state.player),
+          hits: times,
+        };
+      }
+    }
+    return { kind: move.intent };
   }
 
   aliveEnemies(): EnemyState[] {
@@ -62,7 +91,8 @@ export class Battle {
     const card = this.state.player.hand[handIndex];
     if (!card) return false;
     const def = resolveCard(card);
-    if (def.cost > this.state.player.energy) return false;
+    if (def.unplayable) return false;
+    if (def.cost !== 'x' && def.cost > this.state.player.energy) return false;
     if (def.target === 'enemy') {
       if (targetIndex === undefined) return false;
       const target = this.state.enemies[targetIndex];
@@ -79,12 +109,14 @@ export class Battle {
     const card = player.hand[handIndex]!;
     const def = resolveCard(card);
 
-    player.energy -= def.cost;
+    // X-cost cards consume all remaining energy; x feeds effects with times: 'x'.
+    const x = def.cost === 'x' ? player.energy : 0;
+    player.energy -= def.cost === 'x' ? x : def.cost;
     player.hand.splice(handIndex, 1);
     this.log(`Player plays ${def.name}`);
 
     const target = def.target === 'enemy' ? this.state.enemies[targetIndex!]! : undefined;
-    this.executeEffects(def.effects, player, target);
+    this.executeEffects(def.effects, player, target, x);
 
     // Powers leave the deck for the rest of the battle; their effect persists as statuses.
     if (def.exhaust || def.type === 'power') {
@@ -99,9 +131,21 @@ export class Battle {
     if (this.state.phase !== 'playerTurn') throw new Error('Not player turn');
     const { player } = this.state;
 
+    // Burn-style cards punish being held until end of turn (damage respects block).
+    for (const card of player.hand) {
+      const burn = resolveCard(card).selfDamageAtTurnEnd;
+      if (burn) {
+        const hpLoss = dealDamage(player, burn);
+        this.log(`Player takes ${burn} (${hpLoss} HP) from ${resolveCard(card).name}`);
+      }
+    }
+    if (this.checkBattleEnd()) return;
+
     player.discardPile.push(...player.hand);
     player.hand = [];
     decayStatuses(player);
+    const metal = tickMetallicize(player);
+    if (metal > 0) this.log(`Player gains ${metal} block from metallicize`);
 
     for (const enemy of this.state.enemies) {
       if (enemy.hp <= 0) continue;
@@ -140,6 +184,7 @@ export class Battle {
       addStatus(enemy, 'strength', ritual);
       this.log(`${enemy.name} gains ${ritual} strength from ritual`);
     }
+    tickMetallicize(enemy);
 
     enemy.moveHistory.push(enemy.nextMoveId);
     enemy.nextMoveId = chooseMove(def, enemy.moveHistory, this.rng);
@@ -150,10 +195,17 @@ export class Battle {
    * For the player, `chosenEnemy` is the card's selected target; for enemies,
    * offensive effects always target the player.
    */
-  private executeEffects(effects: Effect[], source: PlayerState | EnemyState, chosenEnemy?: EnemyState): void {
+  private executeEffects(
+    effects: Effect[],
+    source: PlayerState | EnemyState,
+    chosenEnemy?: EnemyState,
+    x = 0,
+  ): void {
     const isPlayer = source === this.state.player;
 
     for (const effect of effects) {
+      // Thorns may kill the attacker mid-effect; stop resolving the rest.
+      if (source.hp <= 0) return;
       switch (effect.kind) {
         case 'damage': {
           const targets: (PlayerState | EnemyState)[] = isPlayer
@@ -161,12 +213,18 @@ export class Battle {
               ? this.aliveEnemies()
               : [chosenEnemy!]
             : [this.state.player];
-          const times = effect.times ?? 1;
+          const times = effect.times === 'x' ? x : (effect.times ?? 1);
           for (const target of targets) {
             for (let i = 0; i < times; i++) {
+              if (source.hp <= 0) return;
               const dmg = calcAttackDamage(effect.amount, source, target);
               const hpLoss = dealDamage(target, dmg);
               this.log(`${this.nameOf(source)} hits ${this.nameOf(target)} for ${dmg} (${hpLoss} HP)`);
+              const thorns = getStatus(target, 'thorns');
+              if (thorns > 0 && target.hp > 0) {
+                const thornLoss = dealDamage(source, thorns);
+                this.log(`${this.nameOf(source)} takes ${thorns} (${thornLoss} HP) thorns`);
+              }
             }
           }
           break;
@@ -202,6 +260,24 @@ export class Battle {
         case 'loseHp': {
           source.hp = Math.max(0, source.hp - effect.amount);
           this.log(`${this.nameOf(source)} loses ${effect.amount} HP`);
+          break;
+        }
+        case 'addCard': {
+          // Cards created mid-battle (Wounds from slimes, etc.) always go to the player's piles.
+          const count = effect.count ?? 1;
+          const { player } = this.state;
+          for (let i = 0; i < count; i++) {
+            const created = makeCard(effect.card);
+            if (effect.destination === 'hand' && player.hand.length < MAX_HAND) {
+              player.hand.push(created);
+            } else if (effect.destination === 'drawPile') {
+              // Shuffled into a random position.
+              player.drawPile.splice(this.rng.int(0, player.drawPile.length), 0, created);
+            } else {
+              player.discardPile.push(created);
+            }
+            this.log(`${resolveCard(created).name} added to ${effect.destination}`);
+          }
           break;
         }
       }

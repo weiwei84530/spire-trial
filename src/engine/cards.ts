@@ -186,6 +186,79 @@ define({
   },
 });
 
+// --- Status & curse cards (unplayable junk that clogs the deck) ---
+
+define({
+  id: 'wound',
+  name: 'Wound',
+  type: 'status',
+  rarity: 'special',
+  cost: 0,
+  target: 'none',
+  unplayable: true,
+  effects: [],
+});
+
+define({
+  id: 'burn',
+  name: 'Burn',
+  type: 'status',
+  rarity: 'special',
+  cost: 0,
+  target: 'none',
+  unplayable: true,
+  selfDamageAtTurnEnd: 2,
+  effects: [],
+});
+
+define({
+  id: 'injury',
+  name: 'Injury',
+  type: 'curse',
+  rarity: 'special',
+  cost: 0,
+  target: 'none',
+  unplayable: true,
+  effects: [],
+});
+
+// --- Day 2 playable cards ---
+
+define({
+  id: 'whirlwind',
+  name: 'Whirlwind',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 'x',
+  target: 'none',
+  effects: [{ kind: 'damage', amount: 5, times: 'x', target: 'allEnemies' }],
+  upgrade: { effects: [{ kind: 'damage', amount: 8, times: 'x', target: 'allEnemies' }] },
+});
+
+define({
+  id: 'metallicize',
+  name: 'Metallicize',
+  type: 'power',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'none',
+  effects: [{ kind: 'applyStatus', status: 'metallicize', stacks: 3, target: 'self' }],
+  upgrade: { effects: [{ kind: 'applyStatus', status: 'metallicize', stacks: 4, target: 'self' }] },
+});
+
+define({
+  id: 'dramatic_entrance',
+  name: 'Dramatic Entrance',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 0,
+  target: 'none',
+  innate: true,
+  exhaust: true,
+  effects: [{ kind: 'damage', amount: 8, target: 'allEnemies' }],
+  upgrade: { effects: [{ kind: 'damage', amount: 12, target: 'allEnemies' }] },
+});
+
 export function getCardDef(defId: string): CardDef {
   const def = CARDS[defId];
   if (!def) throw new Error(`Unknown card: ${defId}`);
