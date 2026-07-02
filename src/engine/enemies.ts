@@ -88,6 +88,55 @@ define({
   },
 });
 
+define({
+  id: 'louse_red',
+  name: 'Red Louse',
+  hp: [16, 20],
+  moves: [
+    { id: 'bite', intent: 'attack', effects: [{ kind: 'damage', amount: 6 }] },
+    {
+      id: 'grow',
+      intent: 'buff',
+      effects: [{ kind: 'applyStatus', status: 'strength', stacks: 3, target: 'self' }],
+    },
+  ],
+  ai: {
+    type: 'weighted',
+    choices: [
+      { move: 'bite', weight: 75, maxRepeat: 2 },
+      { move: 'grow', weight: 25, maxRepeat: 1 },
+    ],
+  },
+});
+
+define({
+  id: 'spike_slime_m',
+  name: 'Spike Slime',
+  hp: [28, 32],
+  moves: [
+    {
+      id: 'flame_tackle',
+      intent: 'attack',
+      effects: [
+        { kind: 'damage', amount: 8 },
+        { kind: 'addCard', card: 'wound', count: 1, destination: 'discardPile' },
+      ],
+    },
+    {
+      id: 'lick',
+      intent: 'debuff',
+      effects: [{ kind: 'applyStatus', status: 'frail', stacks: 1, target: 'enemy' }],
+    },
+  ],
+  ai: {
+    type: 'weighted',
+    choices: [
+      { move: 'flame_tackle', weight: 30, maxRepeat: 2 },
+      { move: 'lick', weight: 70, maxRepeat: 2 },
+    ],
+  },
+});
+
 export function getEnemyDef(defId: string): EnemyDef {
   const def = ENEMIES[defId];
   if (!def) throw new Error(`Unknown enemy: ${defId}`);

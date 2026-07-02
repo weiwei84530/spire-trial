@@ -1,0 +1,251 @@
+/* Battle screen — dark, flat, minimal. Placeholder art direction for the whole game. */
+:root {
+  --bg: #16181d;
+  --panel: #22252d;
+  --panel-2: #2b2f39;
+  --text: #e8e6e0;
+  --muted: #9a9790;
+  --hp: #c0392b;
+  --hp-bg: #4a1710;
+  --block: #4d9de0;
+  --energy: #e8b93b;
+  --attack: #b0413e;
+  --skill: #3e6fb0;
+  --power: #b08a3e;
+  --junk: #555a63;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", "Microsoft JhengHei", system-ui, sans-serif;
+  user-select: none;
+}
+
+.battle {
+  max-width: 1100px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 16px;
+  position: relative;
+}
+
+.top-bar { color: var(--muted); padding: 4px 2px; }
+
+/* --- Enemies --- */
+.enemies-row {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 40px;
+  padding: 12px 0 24px;
+  min-height: 220px;
+}
+
+.enemy {
+  width: 150px;
+  text-align: center;
+  cursor: default;
+  transition: transform 0.1s;
+}
+
+.enemy.dead { opacity: 0.25; filter: grayscale(1); }
+
+.enemy.targetable {
+  cursor: pointer;
+  transform: translateY(-4px);
+}
+.enemy.targetable .enemy-art { outline: 2px solid var(--energy); outline-offset: 4px; border-radius: 8px; }
+
+.enemy-art svg { width: 110px; height: 82px; }
+
+.intent {
+  font-size: 18px;
+  font-weight: 700;
+  height: 26px;
+  color: #ff9f43;
+}
+
+.actor-name { font-size: 14px; color: var(--muted); margin: 2px 0; }
+
+/* --- HP bar --- */
+.hp-bar {
+  position: relative;
+  background: var(--hp-bg);
+  border-radius: 4px;
+  height: 18px;
+  overflow: visible;
+}
+.hp-fill { background: var(--hp); height: 100%; border-radius: 4px; transition: width 0.15s; }
+.hp-text {
+  position: absolute;
+  inset: 0;
+  font-size: 12px;
+  line-height: 18px;
+  text-shadow: 0 1px 2px #000;
+}
+.block-chip {
+  position: absolute;
+  left: -14px;
+  top: -4px;
+  background: var(--block);
+  border-radius: 50%;
+  min-width: 26px;
+  height: 26px;
+  line-height: 26px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  box-shadow: 0 1px 3px #000;
+}
+
+.statuses { min-height: 22px; margin-top: 4px; }
+.status-chip {
+  display: inline-block;
+  background: var(--panel-2);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 11px;
+  margin: 1px;
+  color: var(--text);
+}
+
+/* --- Player row --- */
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 10px 16px;
+}
+.player-panel { width: 220px; }
+
+.energy-orb {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffe28a, var(--energy) 60%, #8a6a12);
+  color: #241d05;
+  font-weight: 800;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+}
+
+.piles { display: flex; flex-direction: column; gap: 2px; color: var(--muted); font-size: 13px; }
+
+.end-turn {
+  margin-left: auto;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 12px 22px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.end-turn:hover:not(:disabled) { background: #363b47; }
+.end-turn:disabled { opacity: 0.4; cursor: default; }
+
+/* --- Hand --- */
+.hand {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 0 10px;
+  min-height: 190px;
+}
+
+.card {
+  width: 128px;
+  height: 172px;
+  background: var(--panel-2);
+  border: 2px solid var(--junk);
+  border-radius: 10px;
+  padding: 8px 9px 6px;
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  flex-shrink: 0;
+}
+.card.type-attack { border-color: var(--attack); }
+.card.type-skill { border-color: var(--skill); }
+.card.type-power { border-color: var(--power); }
+
+.card.playable:hover { transform: translateY(-10px); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6); }
+.card.selected { transform: translateY(-14px); box-shadow: 0 0 0 3px var(--energy); }
+.card.unplayable { opacity: 0.45; cursor: default; }
+
+.cost {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--energy);
+  color: #241d05;
+  font-weight: 800;
+  text-align: center;
+  line-height: 28px;
+  box-shadow: 0 1px 3px #000;
+}
+
+.card-name { font-weight: 700; font-size: 13px; margin: 2px 0 1px 14px; }
+.card-type { font-size: 10px; color: var(--muted); margin-left: 14px; }
+.card-text { font-size: 12px; margin-top: 10px; line-height: 1.45; color: var(--text); }
+
+/* --- Log --- */
+.log-panel {
+  position: absolute;
+  right: -230px;
+  top: 40px;
+  width: 210px;
+  max-height: 70vh;
+  overflow-y: auto;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 8px;
+}
+@media (max-width: 1560px) {
+  .log-panel { position: static; width: auto; max-height: 110px; margin-top: 8px; }
+}
+
+/* --- Overlay --- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+.overlay-box {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 32px 48px;
+  text-align: center;
+}
+.overlay-box h2 { margin: 0 0 18px; font-size: 28px; }
+.overlay-box button {
+  background: var(--energy);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 26px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
