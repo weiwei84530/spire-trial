@@ -137,6 +137,26 @@ define({
   },
 });
 
+define({
+  // Placeholder Act 1 boss; real bosses land on Days 7-9.
+  id: 'boss_maw',
+  name: 'The Maw',
+  hp: [88, 92],
+  moves: [
+    {
+      id: 'roar',
+      intent: 'buff',
+      effects: [
+        { kind: 'applyStatus', status: 'strength', stacks: 2, target: 'self' },
+        { kind: 'block', amount: 9 },
+      ],
+    },
+    { id: 'slam', intent: 'attack', effects: [{ kind: 'damage', amount: 14 }] },
+    { id: 'double_bite', intent: 'attack', effects: [{ kind: 'damage', amount: 6, times: 2 }] },
+  ],
+  ai: { type: 'sequence', moves: ['roar', 'slam', 'double_bite'] },
+});
+
 export function getEnemyDef(defId: string): EnemyDef {
   const def = ENEMIES[defId];
   if (!def) throw new Error(`Unknown enemy: ${defId}`);

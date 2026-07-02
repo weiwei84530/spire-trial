@@ -1,35 +1,28 @@
 /**
- * Battle screen controller: owns the Battle instance and UI state
- * (card selection), and re-renders the whole screen after every action.
- * Engine stays headless; this file is the only place that touches the DOM
- * together with main.ts.
+ * Run-level UI controller: renders one screen per run phase
+ * (map / battle / reward / rest / result) and forwards clicks to the
+ * headless Run + Battle engines. This file and main.ts are the only
+ * places that touch the DOM.
  */
-import { Battle } from '../engine/battle';
-import { makeCard, makeStarterDeck, resolveCard } from '../engine/cards';
-import type { CardInstance, EnemyState } from '../engine/types';
+import { resolveCard, getCardDef } from '../engine/cards';
+import { Run } from '../engine/run';
+import type { MapNode, NodeKind } from '../engine/map';
+import type { CardDef, CardInstance, EnemyState } from '../engine/types';
 import { cardText, CARD_TYPE_NAMES, intentText, STATUS_NAMES } from './describe';
 
-/** Starter deck plus a sampler of Day 1-2 cards so the demo shows every mechanic. */
-function demoDeck(): CardInstance[] {
-  return [
-    ...makeStarterDeck(),
-    makeCard('pommel_strike'),
-    makeCard('shrug_it_off'),
-    makeCard('cleave'),
-    makeCard('twin_strike'),
-    makeCard('whirlwind'),
-    makeCard('metallicize'),
-    makeCard('dramatic_entrance'),
-  ];
-}
+const NODE_ICONS: Record<NodeKind, string> = {
+  battle: '⚔',
+  elite: '💀',
+  rest: '🔥',
+  boss: '👑',
+};
 
-const ENCOUNTERS: string[][] = [
-  ['jaw_worm'],
-  ['cultist'],
-  ['acid_slime', 'spike_slime_m'],
-  ['louse_red', 'louse_red'],
-  ['jaw_worm', 'cultist'],
-];
+const NODE_NAMES: Record<NodeKind, string> = {
+  battle: '戰鬥',
+  elite: '精英',
+  rest: '營火',
+  boss: '頭目',
+};
 
 /** Flat-color SVG art per enemy family. Placeholder-quality but consistent. */
 function enemyArt(defId: string): string {
@@ -38,7 +31,7 @@ function enemyArt(defId: string): string {
       <ellipse cx="40" cy="30" rx="22" ry="16" fill="var(--art)" opacity="0.85"/>
       <circle cx="33" cy="28" r="3" fill="#111"/><circle cx="48" cy="28" r="3" fill="#111"/></svg>`;
   }
-  if (defId.includes('worm')) {
+  if (defId.includes('worm') || defId === 'boss_maw') {
     return `<svg viewBox="0 0 80 60"><circle cx="20" cy="45" r="12" fill="var(--art)" opacity="0.7"/>
       <circle cx="38" cy="38" r="14" fill="var(--art)" opacity="0.85"/>
       <circle cx="56" cy="28" r="16" fill="var(--art)"/>
@@ -49,7 +42,6 @@ function enemyArt(defId: string): string {
       <path d="M20 30 l-10 -8 M25 22 l-8 -12 M60 30 l10 -8 M55 22 l8 -12" stroke="var(--art)" stroke-width="3"/>
       <circle cx="34" cy="32" r="3" fill="#111"/><circle cx="46" cy="32" r="3" fill="#111"/></svg>`;
   }
-  // cultist and default: hooded figure
   return `<svg viewBox="0 0 80 60"><path d="M40 8 L62 56 L18 56 Z" fill="var(--art)"/>
     <circle cx="40" cy="26" r="9" fill="#111" opacity="0.6"/>
     <circle cx="37" cy="25" r="2" fill="#e8d44d"/><circle cx="44" cy="25" r="2" fill="#e8d44d"/></svg>`;
@@ -61,72 +53,177 @@ const ENEMY_COLORS: Record<string, string> = {
   acid_slime: '#5fb08a',
   spike_slime_m: '#b05f6b',
   louse_red: '#c26d4f',
+  boss_maw: '#a83f57',
 };
 
+/** Shared card face used by the hand, rewards, and the campfire deck list. */
+function cardFaceHtml(def: CardDef, extraClass = '', dataAttr = ''): string {
+  const cost = def.cost === 'x' ? 'X' : String(def.cost);
+  return `
+    <div class="card type-${def.type} ${extraClass}" ${dataAttr}>
+      <div class="cost">${cost}</div>
+      <div class="card-name">${def.name}</div>
+      <div class="card-type">${CARD_TYPE_NAMES[def.type]}</div>
+      <div class="card-text">${cardText(def)}</div>
+    </div>`;
+}
+
 export class App {
-  private battle!: Battle;
+  private run!: Run;
   private selected: number | null = null;
   private readonly root: HTMLElement;
 
   constructor(root: HTMLElement) {
     this.root = root;
-    this.newBattle();
+    // Dev hook: lets browser-side tests drive the app without physical clicks.
+    (window as unknown as { __app: App }).__app = this;
+    this.newRun();
   }
 
-  private newBattle(): void {
-    const seed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
-    const encounter = ENCOUNTERS[Math.floor(Math.random() * ENCOUNTERS.length)]!;
-    this.battle = new Battle({
-      seed,
-      deck: demoDeck(),
-      playerHp: 80,
-      playerMaxHp: 80,
-      enemies: encounter,
-    });
+  private newRun(): void {
+    this.run = new Run((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0);
     this.selected = null;
+    this.render();
+  }
+
+  // --- event handlers ---
+
+  private onNodeClick(id: string): void {
+    if (!this.run.availableNodes().some((n) => n.id === id)) return;
+    this.run.enterNode(id);
+    this.render();
+  }
+
+  private battleActionDone(): void {
+    if (this.run.battle && this.run.battle.state.phase !== 'playerTurn') {
+      this.run.resolveBattle();
+    }
     this.render();
   }
 
   private onCardClick(index: number): void {
-    const card = this.battle.state.player.hand[index];
+    const battle = this.run.battle;
+    if (!battle) return;
+    const card = battle.state.player.hand[index];
     if (!card) return;
-    const def = resolveCard(card);
-    if (def.target === 'enemy') {
-      // Toggle targeting mode; the actual play happens on enemy click.
+    if (resolveCard(card).target === 'enemy') {
       this.selected = this.selected === index ? null : index;
       this.render();
       return;
     }
-    if (this.battle.canPlay(index)) {
+    if (battle.canPlay(index)) {
       this.selected = null;
-      this.battle.playCard(index);
-      this.render();
+      battle.playCard(index);
+      this.battleActionDone();
     }
   }
 
   private onEnemyClick(enemyIndex: number): void {
-    if (this.selected === null) return;
-    if (this.battle.canPlay(this.selected, enemyIndex)) {
-      this.battle.playCard(this.selected, enemyIndex);
+    const battle = this.run.battle;
+    if (!battle || this.selected === null) return;
+    if (battle.canPlay(this.selected, enemyIndex)) {
+      battle.playCard(this.selected, enemyIndex);
       this.selected = null;
-      this.render();
+      this.battleActionDone();
     }
   }
 
   private onEndTurn(): void {
-    if (this.battle.state.phase !== 'playerTurn') return;
+    const battle = this.run.battle;
+    if (!battle || battle.state.phase !== 'playerTurn') return;
     this.selected = null;
-    this.battle.endTurn();
-    this.render();
+    battle.endTurn();
+    this.battleActionDone();
   }
 
   // --- rendering ---
 
   private render(): void {
-    const { player, enemies, phase, turn } = this.battle.state;
-    this.root.innerHTML = `
+    let screen: string;
+    switch (this.run.phase) {
+      case 'map':
+        screen = this.mapScreen();
+        break;
+      case 'battle':
+        screen = this.battleScreen();
+        break;
+      case 'reward':
+        screen = this.rewardScreen();
+        break;
+      case 'rest':
+        screen = this.restScreen();
+        break;
+      case 'victory':
+      case 'defeat':
+        screen = this.resultScreen(this.run.phase);
+        break;
+    }
+    this.root.innerHTML = `<div class="game">${this.topBarHtml()}${screen}</div>`;
+    this.bind();
+  }
+
+  private topBarHtml(): string {
+    const floor = this.run.currentNodeId ? getNodeRow(this.run, this.run.currentNodeId) + 1 : 0;
+    return `
+      <div class="top-bar">
+        <span>❤ ${this.run.hp}/${this.run.maxHp}</span>
+        <span>🂠 牌組 ${this.run.deck.length}</span>
+        <span>樓層 ${floor}/${this.run.map.rows.length}</span>
+      </div>`;
+  }
+
+  // --- map screen ---
+
+  private mapScreen(): string {
+    const rows = this.run.map.rows;
+    const rowCount = rows.length;
+    const width = 700;
+    const rowGap = 68;
+    const height = rowCount * rowGap + 30;
+    const x = (col: number) => 120 + col * 155;
+    const y = (row: number) => height - 40 - row * rowGap;
+    const available = new Set(this.run.availableNodes().map((n) => n.id));
+    const visited = new Set(this.run.visited);
+
+    let edges = '';
+    let nodes = '';
+    for (const row of rows) {
+      for (const node of row) {
+        for (const nextId of node.next) {
+          const to = findNode(rows, nextId);
+          edges += `<line x1="${x(node.col)}" y1="${y(node.row)}" x2="${x(to.col)}" y2="${y(to.row)}"
+            class="map-edge ${visited.has(node.id) && visited.has(nextId) ? 'walked' : ''}"/>`;
+        }
+        const cls = [
+          'map-node',
+          available.has(node.id) ? 'available' : '',
+          visited.has(node.id) ? 'visited' : '',
+          node.id === this.run.currentNodeId ? 'current' : '',
+        ].join(' ');
+        nodes += `
+          <g class="${cls}" data-node="${node.id}" transform="translate(${x(node.col)},${y(node.row)})">
+            <circle r="22"/>
+            <text y="7" text-anchor="middle">${NODE_ICONS[node.kind]}</text>
+            <title>${NODE_NAMES[node.kind]}</title>
+          </g>`;
+      }
+    }
+
+    return `
+      <div class="map-screen">
+        <h2>選擇下一個地點</h2>
+        <svg viewBox="0 0 ${width} ${height}" class="map-svg">${edges}${nodes}</svg>
+      </div>`;
+  }
+
+  // --- battle screen (structure shared with Day 3) ---
+
+  private battleScreen(): string {
+    const battle = this.run.battle!;
+    const { player, enemies, turn } = battle.state;
+    return `
       <div class="battle">
-        <div class="top-bar"><span>回合 ${turn}</span></div>
+        <div class="turn-label">回合 ${turn}</div>
         <div class="enemies-row">${enemies.map((e, i) => this.enemyHtml(e, i)).join('')}</div>
         <div class="player-row">
           <div class="player-panel">
@@ -140,18 +237,17 @@ export class App {
             <span>棄牌 ${player.discardPile.length}</span>
             <span>消耗 ${player.exhaustPile.length}</span>
           </div>
-          <button class="end-turn" ${phase !== 'playerTurn' ? 'disabled' : ''}>結束回合</button>
+          <button class="end-turn">結束回合</button>
         </div>
-        <div class="hand">${player.hand.map((c, i) => this.cardHtml(c, i)).join('')}</div>
-        <div class="log-panel">${this.battle.state.log.slice(-40).map((l) => `<div>${l}</div>`).join('')}</div>
-        ${phase !== 'playerTurn' ? this.overlayHtml(phase) : ''}
+        <div class="hand">${player.hand.map((c, i) => this.handCardHtml(c, i)).join('')}</div>
+        <div class="log-panel">${battle.state.log.slice(-40).map((l) => `<div>${l}</div>`).join('')}</div>
       </div>`;
-    this.bind();
   }
 
   private enemyHtml(enemy: EnemyState, index: number): string {
     const dead = enemy.hp <= 0;
-    const intent = dead ? '' : `<div class="intent">${intentText(this.battle.intentOf(enemy))}</div>`;
+    const battle = this.run.battle!;
+    const intent = dead ? '' : `<div class="intent">${intentText(battle.intentOf(enemy))}</div>`;
     const targetable = this.selected !== null && !dead;
     return `
       <div class="enemy ${dead ? 'dead' : ''} ${targetable ? 'targetable' : ''}" data-enemy="${index}"
@@ -164,20 +260,14 @@ export class App {
       </div>`;
   }
 
-  private cardHtml(card: CardInstance, index: number): string {
+  private handCardHtml(card: CardInstance, index: number): string {
+    const battle = this.run.battle!;
     const def = resolveCard(card);
     const playable =
-      this.battle.canPlay(index) ||
-      this.battle.state.enemies.some((e, i) => e.hp > 0 && this.battle.canPlay(index, i));
-    const cost = def.cost === 'x' ? 'X' : String(def.cost);
-    return `
-      <div class="card type-${def.type} ${playable ? 'playable' : 'unplayable'} ${this.selected === index ? 'selected' : ''}"
-           data-card="${index}">
-        <div class="cost">${cost}</div>
-        <div class="card-name">${def.name}</div>
-        <div class="card-type">${CARD_TYPE_NAMES[def.type]}</div>
-        <div class="card-text">${cardText(def)}</div>
-      </div>`;
+      battle.canPlay(index) ||
+      battle.state.enemies.some((e, i) => e.hp > 0 && battle.canPlay(index, i));
+    const cls = `${playable ? 'playable' : 'not-playable'} ${this.selected === index ? 'selected' : ''}`;
+    return cardFaceHtml(def, cls, `data-card="${index}"`);
   }
 
   private hpBarHtml(hp: number, maxHp: number, block: number): string {
@@ -197,27 +287,88 @@ export class App {
       .join('');
   }
 
-  private overlayHtml(phase: 'victory' | 'defeat'): string {
+  // --- reward / rest / result screens ---
+
+  private rewardScreen(): string {
+    const cards = (this.run.cardRewards ?? [])
+      .map((id) => cardFaceHtml(getCardDef(id), 'pickable', `data-reward="${id}"`))
+      .join('');
     return `
-      <div class="overlay">
-        <div class="overlay-box">
-          <h2>${phase === 'victory' ? '勝利！' : '戰敗…'}</h2>
-          <button class="restart">再來一場</button>
-        </div>
+      <div class="dialog-screen">
+        <h2>勝利！選擇一張卡牌</h2>
+        <div class="card-row">${cards}</div>
+        <button class="ghost-btn" data-skip-reward>跳過獎勵</button>
+      </div>`;
+  }
+
+  private restScreen(): string {
+    const heal = Math.floor(this.run.maxHp * 0.3);
+    const deckList = this.run.deck
+      .map((card, i) => {
+        const def = resolveCard(card);
+        const canUp = this.run.canUpgrade(i);
+        return cardFaceHtml(def, canUp ? 'pickable' : 'dimmed', canUp ? `data-upgrade="${i}"` : '');
+      })
+      .join('');
+    return `
+      <div class="dialog-screen">
+        <h2>🔥 營火</h2>
+        <p>休息回復 ${heal} HP，或鍛造升級一張卡牌。</p>
+        <button class="primary-btn" data-rest-heal>休息（+${heal} HP）</button>
+        <h3>或點選要升級的卡牌：</h3>
+        <div class="card-row wrap">${deckList}</div>
+      </div>`;
+  }
+
+  private resultScreen(phase: 'victory' | 'defeat'): string {
+    return `
+      <div class="dialog-screen center">
+        <h2>${phase === 'victory' ? '🎉 通過第一幕！' : '💀 你死了…'}</h2>
+        <p>${phase === 'victory' ? '擊敗頭目，本輪完成。' : `倒在樓層 ${this.run.visited.length}。`}</p>
+        <button class="primary-btn" data-new-run>開始新的一輪</button>
       </div>`;
   }
 
   private bind(): void {
-    this.root.querySelectorAll<HTMLElement>('[data-card]').forEach((el) => {
-      el.addEventListener('click', () => this.onCardClick(Number(el.dataset.card)));
+    const on = (selector: string, fn: (el: HTMLElement) => void) => {
+      this.root.querySelectorAll<HTMLElement>(selector).forEach((el) => {
+        el.addEventListener('click', () => fn(el));
+      });
+    };
+    on('[data-node]', (el) => this.onNodeClick(el.dataset.node!));
+    on('[data-card]', (el) => this.onCardClick(Number(el.dataset.card)));
+    on('[data-enemy]', (el) => this.onEnemyClick(Number(el.dataset.enemy)));
+    on('.end-turn', () => this.onEndTurn());
+    on('[data-reward]', (el) => {
+      this.run.pickReward(el.dataset.reward!);
+      this.render();
     });
-    this.root.querySelectorAll<HTMLElement>('[data-enemy]').forEach((el) => {
-      el.addEventListener('click', () => this.onEnemyClick(Number(el.dataset.enemy)));
+    on('[data-skip-reward]', () => {
+      this.run.pickReward(null);
+      this.render();
     });
-    this.root.querySelector('.end-turn')?.addEventListener('click', () => this.onEndTurn());
-    this.root.querySelector('.restart')?.addEventListener('click', () => this.newBattle());
-    // Auto-scroll the log to the latest entry.
+    on('[data-rest-heal]', () => {
+      this.run.restHeal();
+      this.render();
+    });
+    on('[data-upgrade]', (el) => {
+      this.run.restUpgrade(Number(el.dataset.upgrade));
+      this.render();
+    });
+    on('[data-new-run]', () => this.newRun());
     const log = this.root.querySelector('.log-panel');
     if (log) log.scrollTop = log.scrollHeight;
   }
+}
+
+function findNode(rows: MapNode[][], id: string): MapNode {
+  for (const row of rows) {
+    const node = row.find((n) => n.id === id);
+    if (node) return node;
+  }
+  throw new Error(`Unknown node ${id}`);
+}
+
+function getNodeRow(run: Run, id: string): number {
+  return findNode(run.map.rows, id).row;
 }
