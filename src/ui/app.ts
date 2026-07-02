@@ -177,11 +177,25 @@ export class App {
     this.render();
   }
 
+  /** UI-level playability: also greys out X-cost cards that would fizzle at 0 energy. */
+  private isHandCardPlayable(index: number): boolean {
+    const battle = this.run.battle;
+    if (!battle) return false;
+    const card = battle.state.player.hand[index];
+    if (!card) return false;
+    if (resolveCard(card).cost === 'x' && battle.state.player.energy === 0) return false;
+    return (
+      battle.canPlay(index) ||
+      battle.state.enemies.some((e, i) => e.hp > 0 && battle.canPlay(index, i))
+    );
+  }
+
   private onCardClick(index: number): void {
     const battle = this.run.battle;
     if (!battle) return;
     const card = battle.state.player.hand[index];
     if (!card) return;
+    if (!this.isHandCardPlayable(index)) return;
     if (resolveCard(card).target === 'enemy') {
       this.selected = this.selected === index ? null : index;
       this.render();
@@ -389,12 +403,22 @@ export class App {
             <span class="pile-link" data-pile="discardPile">棄牌 ${player.discardPile.length}</span>
             <span class="pile-link" data-pile="exhaustPile">消耗 ${player.exhaustPile.length}</span>
           </div>
-          <button class="end-turn">結束回合</button>
+          ${this.endTurnButtonHtml()}
         </div>
         <div class="hand">${player.hand.map((c, i) => this.handCardHtml(c, i)).join('')}</div>
         <div class="log-panel">${battle.state.log.slice(-40).map((l) => `<div>${l}</div>`).join('')}</div>
         ${this.pileView ? this.pileOverlayHtml() : ''}
       </div>`;
+  }
+
+  /** Warns when ending the turn would waste energy on still-playable cards. */
+  private endTurnButtonHtml(): string {
+    const battle = this.run.battle!;
+    const player = battle.state.player;
+    const wouldWaste =
+      player.energy > 0 && player.hand.some((_, i) => this.isHandCardPlayable(i));
+    if (!wouldWaste) return '<button class="end-turn">結束回合</button>';
+    return `<button class="end-turn warn" title="還有可打出的卡牌">結束回合（剩 ⚡${player.energy}）</button>`;
   }
 
   private pileOverlayHtml(): string {
@@ -434,11 +458,8 @@ export class App {
   }
 
   private handCardHtml(card: CardInstance, index: number): string {
-    const battle = this.run.battle!;
     const def = resolveCard(card);
-    const playable =
-      battle.canPlay(index) ||
-      battle.state.enemies.some((e, i) => e.hp > 0 && battle.canPlay(index, i));
+    const playable = this.isHandCardPlayable(index);
     const cls = `${playable ? 'playable' : 'not-playable'} ${this.selected === index ? 'selected' : ''}`;
     return cardFaceHtml(def, cls, `data-card="${index}"`);
   }

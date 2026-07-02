@@ -2,7 +2,7 @@
  * Balance simulation CLI: runs the greedy policy over benchmark encounters
  * and prints win rate / average HP loss / average turns.
  *
- * Usage: npm run sim [-- --runs 2000]
+ * Usage: npm run sim [-- --runs 2000 --full 1000]
  */
 import { makeCard, makeStarterDeck } from '../src/engine/cards';
 import type { CardInstance } from '../src/engine/types';
@@ -10,6 +10,8 @@ import { simulate } from '../src/sim/simulate';
 
 const runsArg = process.argv.indexOf('--runs');
 const runs = runsArg >= 0 ? Number(process.argv[runsArg + 1]) : 1000;
+const fullArg = process.argv.indexOf('--full');
+const fullRuns = fullArg >= 0 ? Number(process.argv[fullArg + 1]) : 300;
 
 /** Rough act 2 deck: starter with upgrades plus a typical set of picked rewards. */
 function midRunDeck(): CardInstance[] {
@@ -73,7 +75,7 @@ table('Act 3 — mid-run deck', midRunDeck, 70, [
 
 // --- Full-run clear rate ---
 import('../src/sim/runSim').then(({ simulateFullRuns }) => {
-  const result = simulateFullRuns(300, 42);
+  const result = simulateFullRuns(fullRuns, 42);
   console.log(`\nFull runs（${result.runs} runs）\n`);
   console.log(`clear rate      ${(result.clearRate * 100).toFixed(1)}%`);
   console.log(`avg act reached ${result.avgActReached.toFixed(2)}`);

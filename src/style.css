@@ -329,6 +329,11 @@ body {
 }
 .end-turn:hover:not(:disabled) { background: #363b47; }
 .end-turn:disabled { opacity: 0.4; cursor: default; }
+.end-turn.warn {
+  border-color: #b8860b;
+  color: #ffd75e;
+  box-shadow: 0 0 8px rgba(255, 200, 60, 0.25);
+}
 
 /* --- Hand --- */
 .hand {
