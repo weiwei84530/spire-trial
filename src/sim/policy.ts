@@ -80,6 +80,12 @@ function scoreCard(battle: Battle, handIndex: number, target: number): number {
       case 'loseHp':
         score -= effect.amount * (player.hp < 20 ? 4 : 1);
         break;
+      case 'heal':
+        score += Math.min(effect.amount, player.maxHp - player.hp) * 0.8;
+        break;
+      case 'doubleBlock':
+        score += Math.min(player.block, unblocked) * 1.2;
+        break;
       case 'addCard':
         break;
     }

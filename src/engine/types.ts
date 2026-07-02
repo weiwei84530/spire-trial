@@ -10,7 +10,9 @@ export type StatusId =
   | 'ritual'
   | 'metallicize'
   | 'thorns'
-  | 'energized';
+  | 'energized'
+  | 'barricade'
+  | 'noxious';
 
 /** Target selector for effects. 'enemy' means the card's chosen target. */
 export type EffectTarget = 'enemy' | 'allEnemies' | 'self';
@@ -28,6 +30,7 @@ export type Effect =
   | { kind: 'gainEnergy'; amount: number }
   | { kind: 'loseHp'; amount: number }
   | { kind: 'heal'; amount: number }
+  | { kind: 'doubleBlock' }
   | { kind: 'addCard'; card: string; count?: number; destination: PileId };
 
 export type CardType = 'attack' | 'skill' | 'power' | 'status' | 'curse';
@@ -101,6 +104,8 @@ export interface EnemyDef {
   ai: EnemyAi;
   /** Triggered once when this enemy dies (e.g. splitting bosses). */
   onDeath?: { spawn: string[] };
+  /** Triggered once when HP first drops to 50% or below (boss phase change). */
+  onHalfHp?: { effects: Effect[]; setMove?: string };
 }
 
 export interface EnemyState extends Actor {
@@ -112,6 +117,8 @@ export interface EnemyState extends Actor {
   moveHistory: string[];
   /** Set once the death trigger has fired, so it never fires twice. */
   deathProcessed?: boolean;
+  /** Set once the half-HP phase trigger has fired. */
+  phaseTriggered?: boolean;
 }
 
 export type BattlePhase = 'playerTurn' | 'victory' | 'defeat';

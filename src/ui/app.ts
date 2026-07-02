@@ -54,7 +54,13 @@ function enemyArt(defId: string): string {
       <path d="M26 34 q-14 -12 -4 -20 q2 10 8 14 M54 34 q14 -12 4 -20 q-2 10 -8 14" fill="var(--art)"/>
       <path d="M40 30 l6 4 l-6 3 Z" fill="#e8b93b"/><circle cx="35" cy="32" r="2.5" fill="#111"/></svg>`;
   }
-  if (defId === 'snake_plant') {
+  if (defId === 'writhing_mass' || defId === 'darkling') {
+    return `<svg viewBox="0 0 80 60"><ellipse cx="40" cy="38" rx="26" ry="20" fill="var(--art)"/>
+      <ellipse cx="28" cy="30" rx="8" ry="6" fill="var(--art)" opacity="0.7"/>
+      <ellipse cx="54" cy="26" rx="7" ry="5" fill="var(--art)" opacity="0.7"/>
+      <circle cx="36" cy="36" r="3" fill="#111"/><circle cx="48" cy="34" r="2" fill="#111"/><circle cx="42" cy="44" r="2" fill="#111"/></svg>`;
+  }
+  if (defId === 'snake_plant' || defId === 'spire_growth') {
     return `<svg viewBox="0 0 80 60"><path d="M38 58 q-4 -26 2 -44 q8 14 4 44 Z" fill="var(--art)"/>
       <path d="M30 52 q-14 -10 -10 -26 q10 6 12 24 M50 52 q14 -10 10 -26 q-10 6 -12 24" fill="var(--art)" opacity="0.8"/>
       <circle cx="41" cy="20" r="4" fill="#111" opacity="0.5"/></svg>`;
@@ -78,6 +84,12 @@ const ENEMY_COLORS: Record<string, string> = {
   centurion: '#9a6f4f',
   gremlin_nob: '#b0455c',
   slime_king: '#3f8a6a',
+  writhing_mass: '#6a5a7a',
+  orb_walker: '#b09a3e',
+  spire_growth: '#3e7a5a',
+  darkling: '#4a4560',
+  giant_head: '#8a7a6a',
+  the_shadow: '#3a2f4f',
 };
 
 /** Shared card face used by the hand, rewards, and the campfire deck list. */

@@ -18,6 +18,8 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   metallicize: '金屬化',
   thorns: '反傷',
   energized: '蓄能',
+  barricade: '屏障',
+  noxious: '毒霧',
 };
 
 const PILE_NAMES: Record<string, string> = {
@@ -49,6 +51,8 @@ function effectText(effect: Effect): string {
       return `失去 ${effect.amount} 點生命`;
     case 'heal':
       return `回復 ${effect.amount} 點生命`;
+    case 'doubleBlock':
+      return '格擋翻倍';
     case 'addCard': {
       const count = effect.count ?? 1;
       return `將 ${count} 張 ${getCardDef(effect.card).name} 加入${PILE_NAMES[effect.destination]}`;

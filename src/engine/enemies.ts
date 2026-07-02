@@ -304,8 +304,155 @@ define({
   onDeath: { spawn: ['acid_slime', 'spike_slime_m'] },
 });
 
+// --- Act 3 roster ---
+
 define({
-  // Placeholder Act 3 boss; the real one lands on Day 9.
+  id: 'writhing_mass',
+  name: 'Writhing Mass',
+  hp: [66, 72],
+  moves: [
+    { id: 'flail', intent: 'attack', effects: [{ kind: 'damage', amount: 15 }] },
+    { id: 'wild_lash', intent: 'attack', effects: [{ kind: 'damage', amount: 7, times: 2 }] },
+    {
+      id: 'malleable',
+      intent: 'defend',
+      effects: [
+        { kind: 'block', amount: 11 },
+        { kind: 'applyStatus', status: 'thorns', stacks: 2, target: 'self' },
+      ],
+    },
+  ],
+  ai: {
+    type: 'weighted',
+    choices: [
+      { move: 'flail', weight: 35, maxRepeat: 2 },
+      { move: 'wild_lash', weight: 35, maxRepeat: 2 },
+      { move: 'malleable', weight: 30, maxRepeat: 1 },
+    ],
+  },
+});
+
+define({
+  id: 'orb_walker',
+  name: 'Orb Walker',
+  hp: [48, 54],
+  moves: [
+    {
+      id: 'laser',
+      intent: 'attack',
+      effects: [
+        { kind: 'damage', amount: 11 },
+        { kind: 'addCard', card: 'burn', destination: 'discardPile' },
+      ],
+    },
+    { id: 'claw', intent: 'attack', effects: [{ kind: 'damage', amount: 15 }] },
+  ],
+  ai: {
+    type: 'weighted',
+    choices: [
+      { move: 'laser', weight: 60, maxRepeat: 2 },
+      { move: 'claw', weight: 40, maxRepeat: 2 },
+    ],
+  },
+});
+
+define({
+  id: 'spire_growth',
+  name: 'Spire Growth',
+  hp: [70, 76],
+  moves: [
+    { id: 'quick_tackle', intent: 'attack', effects: [{ kind: 'damage', amount: 16 }] },
+    {
+      id: 'constrict',
+      intent: 'debuff',
+      effects: [{ kind: 'applyStatus', status: 'poison', stacks: 4, target: 'enemy' }],
+    },
+    { id: 'smash', intent: 'attack', effects: [{ kind: 'damage', amount: 22 }] },
+  ],
+  ai: {
+    type: 'weighted',
+    choices: [
+      { move: 'quick_tackle', weight: 45, maxRepeat: 2 },
+      { move: 'constrict', weight: 25, maxRepeat: 1 },
+      { move: 'smash', weight: 30, maxRepeat: 1 },
+    ],
+  },
+});
+
+define({
+  id: 'darkling',
+  name: 'Darkling',
+  hp: [48, 52],
+  moves: [
+    { id: 'nip', intent: 'attack', effects: [{ kind: 'damage', amount: 11 }] },
+    { id: 'chomp', intent: 'attack', effects: [{ kind: 'damage', amount: 9, times: 2 }] },
+    { id: 'harden', intent: 'defend', effects: [{ kind: 'block', amount: 9 }] },
+  ],
+  ai: {
+    type: 'weighted',
+    choices: [
+      { move: 'nip', weight: 40, maxRepeat: 2 },
+      { move: 'chomp', weight: 30, maxRepeat: 1 },
+      { move: 'harden', weight: 30, maxRepeat: 1 },
+    ],
+  },
+});
+
+define({
+  // Act 3 elite: builds up to a devastating strike on a fixed schedule.
+  id: 'giant_head',
+  name: 'Giant Head',
+  hp: [120, 130],
+  moves: [
+    {
+      id: 'glare',
+      intent: 'debuff',
+      effects: [{ kind: 'applyStatus', status: 'weak', stacks: 1, target: 'enemy' }],
+    },
+    { id: 'count', intent: 'attack', effects: [{ kind: 'damage', amount: 13 }] },
+    { id: 'it_is_time', intent: 'attack', effects: [{ kind: 'damage', amount: 32 }] },
+  ],
+  ai: { type: 'sequence', moves: ['glare', 'count', 'count', 'it_is_time'] },
+});
+
+define({
+  // Final boss: enrages at half HP.
+  id: 'the_shadow',
+  name: 'The Shadow',
+  hp: [150, 160],
+  moves: [
+    {
+      id: 'gather_darkness',
+      intent: 'buff',
+      effects: [
+        { kind: 'applyStatus', status: 'strength', stacks: 2, target: 'self' },
+        { kind: 'block', amount: 12 },
+      ],
+    },
+    { id: 'dark_slash', intent: 'attack', effects: [{ kind: 'damage', amount: 14 }] },
+    {
+      id: 'void_grasp',
+      intent: 'attack',
+      effects: [
+        { kind: 'damage', amount: 10 },
+        { kind: 'applyStatus', status: 'frail', stacks: 2, target: 'enemy' },
+      ],
+    },
+    { id: 'oblivion', intent: 'attack', effects: [{ kind: 'damage', amount: 24 }] },
+  ],
+  ai: { type: 'sequence', moves: ['gather_darkness', 'dark_slash', 'void_grasp', 'oblivion'] },
+  onHalfHp: {
+    effects: [
+      { kind: 'applyStatus', status: 'strength', stacks: 4, target: 'self' },
+      { kind: 'applyStatus', status: 'ritual', stacks: 2, target: 'self' },
+      { kind: 'block', amount: 15 },
+    ],
+    setMove: 'oblivion',
+  },
+});
+
+define({
+  // Act 1 boss (formerly a placeholder, now demoted to the easiest boss slot).
   id: 'boss_maw',
   name: 'The Maw',
   hp: [88, 92],

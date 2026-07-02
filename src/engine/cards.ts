@@ -594,6 +594,185 @@ define({
   },
 });
 
+// --- Day 9 pool expansion ---
+
+define({
+  id: 'quick_slash',
+  name: 'Quick Slash',
+  type: 'attack',
+  rarity: 'common',
+  cost: 1,
+  target: 'enemy',
+  effects: [
+    { kind: 'damage', amount: 8 },
+    { kind: 'draw', count: 1 },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 12 },
+      { kind: 'draw', count: 1 },
+    ],
+  },
+});
+
+define({
+  id: 'flurry',
+  name: 'Flurry',
+  type: 'attack',
+  rarity: 'common',
+  cost: 0,
+  target: 'enemy',
+  effects: [{ kind: 'damage', amount: 3, times: 2 }],
+  upgrade: { effects: [{ kind: 'damage', amount: 4, times: 2 }] },
+});
+
+define({
+  id: 'heavy_blade',
+  name: 'Heavy Blade',
+  type: 'attack',
+  rarity: 'common',
+  cost: 2,
+  target: 'enemy',
+  effects: [{ kind: 'damage', amount: 16 }],
+  upgrade: { effects: [{ kind: 'damage', amount: 22 }] },
+});
+
+define({
+  id: 'trip',
+  name: 'Trip',
+  type: 'skill',
+  rarity: 'common',
+  cost: 1,
+  target: 'enemy',
+  effects: [{ kind: 'applyStatus', status: 'vulnerable', stacks: 2, target: 'enemy' }],
+  upgrade: { effects: [{ kind: 'applyStatus', status: 'vulnerable', stacks: 3, target: 'enemy' }] },
+});
+
+define({
+  id: 'emergency_guard',
+  name: 'Emergency Guard',
+  type: 'skill',
+  rarity: 'common',
+  cost: 0,
+  target: 'none',
+  exhaust: true,
+  effects: [{ kind: 'block', amount: 9 }],
+  upgrade: { effects: [{ kind: 'block', amount: 13 }] },
+});
+
+define({
+  id: 'intimidate',
+  name: 'Intimidate',
+  type: 'skill',
+  rarity: 'common',
+  cost: 0,
+  target: 'none',
+  exhaust: true,
+  effects: [{ kind: 'applyStatus', status: 'weak', stacks: 1, target: 'allEnemies' }],
+  upgrade: { effects: [{ kind: 'applyStatus', status: 'weak', stacks: 2, target: 'allEnemies' }] },
+});
+
+define({
+  id: 'noxious_blast',
+  name: 'Noxious Blast',
+  type: 'skill',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'none',
+  effects: [{ kind: 'applyStatus', status: 'poison', stacks: 3, target: 'allEnemies' }],
+  upgrade: { effects: [{ kind: 'applyStatus', status: 'poison', stacks: 5, target: 'allEnemies' }] },
+});
+
+define({
+  id: 'skewer',
+  name: 'Skewer',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 'x',
+  target: 'enemy',
+  effects: [{ kind: 'damage', amount: 7, times: 'x' }],
+  upgrade: { effects: [{ kind: 'damage', amount: 9, times: 'x' }] },
+});
+
+define({
+  id: 'entrench',
+  name: 'Entrench',
+  type: 'skill',
+  rarity: 'uncommon',
+  cost: 2,
+  target: 'none',
+  effects: [{ kind: 'doubleBlock' }],
+  upgrade: { cost: 1 },
+});
+
+define({
+  id: 'seeing_red',
+  name: 'Seeing Red',
+  type: 'skill',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'none',
+  exhaust: true,
+  effects: [{ kind: 'gainEnergy', amount: 2 }],
+  upgrade: { cost: 0 },
+});
+
+define({
+  id: 'footwork',
+  name: 'Footwork',
+  type: 'power',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'none',
+  effects: [{ kind: 'applyStatus', status: 'dexterity', stacks: 2, target: 'self' }],
+  upgrade: { effects: [{ kind: 'applyStatus', status: 'dexterity', stacks: 3, target: 'self' }] },
+});
+
+define({
+  id: 'caltrops',
+  name: 'Caltrops',
+  type: 'power',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'none',
+  effects: [{ kind: 'applyStatus', status: 'thorns', stacks: 3, target: 'self' }],
+  upgrade: { effects: [{ kind: 'applyStatus', status: 'thorns', stacks: 5, target: 'self' }] },
+});
+
+define({
+  id: 'die_die_die',
+  name: 'Die Die Die',
+  type: 'attack',
+  rarity: 'rare',
+  cost: 1,
+  target: 'none',
+  exhaust: true,
+  effects: [{ kind: 'damage', amount: 13, target: 'allEnemies' }],
+  upgrade: { effects: [{ kind: 'damage', amount: 17, target: 'allEnemies' }] },
+});
+
+define({
+  id: 'barricade',
+  name: 'Barricade',
+  type: 'power',
+  rarity: 'rare',
+  cost: 3,
+  target: 'none',
+  effects: [{ kind: 'applyStatus', status: 'barricade', stacks: 1, target: 'self' }],
+  upgrade: { cost: 2 },
+});
+
+define({
+  id: 'noxious_fumes',
+  name: 'Noxious Fumes',
+  type: 'power',
+  rarity: 'rare',
+  cost: 1,
+  target: 'none',
+  effects: [{ kind: 'applyStatus', status: 'noxious', stacks: 2, target: 'self' }],
+  upgrade: { effects: [{ kind: 'applyStatus', status: 'noxious', stacks: 3, target: 'self' }] },
+});
+
 // --- Status & curse cards (unplayable junk that clogs the deck) ---
 
 define({

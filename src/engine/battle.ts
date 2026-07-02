@@ -189,11 +189,20 @@ export class Battle {
 
   private startPlayerTurn(): void {
     const { player } = this.state;
-    player.block = 0;
+    // Barricade keeps block between turns.
+    if (getStatus(player, 'barricade') === 0) player.block = 0;
     const poison = tickPoison(player);
     if (poison > 0) this.log(`Player takes ${poison} poison damage`);
     if (this.checkBattleEnd()) return;
     player.energy = player.maxEnergy + getStatus(player, 'energized');
+    // Noxious fumes: poison every living enemy at the start of each player turn.
+    const noxious = getStatus(player, 'noxious');
+    if (noxious > 0) {
+      for (const enemy of this.aliveEnemies()) {
+        addStatus(enemy, 'poison', noxious);
+      }
+      this.log(`Noxious fumes poison all enemies (${noxious})`);
+    }
     this.drawCards(HAND_SIZE);
   }
 
@@ -297,6 +306,11 @@ export class Battle {
           this.log(`${this.nameOf(source)} heals ${effect.amount}`);
           break;
         }
+        case 'doubleBlock': {
+          source.block *= 2;
+          this.log(`${this.nameOf(source)} doubles block to ${source.block}`);
+          break;
+        }
         case 'addCard': {
           // Cards created mid-battle (Wounds from slimes, etc.) always go to the player's piles.
           const count = effect.count ?? 1;
@@ -357,9 +371,23 @@ export class Battle {
     }
   }
 
+  /** Fires half-HP phase changes (boss enrage) exactly once per enemy. */
+  private processPhaseTriggers(): void {
+    for (const enemy of this.state.enemies) {
+      if (enemy.hp <= 0 || enemy.phaseTriggered) continue;
+      const def = getEnemyDef(enemy.defId);
+      if (!def.onHalfHp || enemy.hp > enemy.maxHp / 2) continue;
+      enemy.phaseTriggered = true;
+      this.log(`${enemy.name} enters a frenzy!`);
+      this.executeEffects(def.onHalfHp.effects, enemy);
+      if (def.onHalfHp.setMove) enemy.nextMoveId = def.onHalfHp.setMove;
+    }
+  }
+
   private checkBattleEnd(): boolean {
     if (this.state.phase !== 'playerTurn') return true;
     this.processDeaths();
+    this.processPhaseTriggers();
     if (this.state.player.hp <= 0) {
       this.state.phase = 'defeat';
       this.log('Defeat');

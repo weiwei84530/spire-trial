@@ -90,10 +90,10 @@ describe('day 7 cards', () => {
 });
 
 describe('multi-act runs', () => {
-  it('act HP scaling grows enemies', () => {
+  it('act HP scaling is neutral (all acts have native rosters) but the hook works', () => {
     expect(actHpScale(1)).toBe(1);
-    expect(actHpScale(2)).toBe(1); // act 2 has a native roster
-    expect(actHpScale(3)).toBeCloseTo(1.25);
+    expect(actHpScale(2)).toBe(1);
+    expect(actHpScale(3)).toBe(1);
     const b1 = new Battle({
       seed: 5,
       deck: ['strike', 'strike', 'strike', 'strike', 'strike'].map((id) => makeCard(id)),

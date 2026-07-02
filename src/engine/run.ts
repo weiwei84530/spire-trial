@@ -25,11 +25,11 @@ export type RunPhase =
 export const ACT_COUNT = 3;
 
 /**
- * Enemy max-HP multiplier per act. Acts 1-2 have native rosters (no scaling);
- * act 3 reuses the act 2 roster with a bump until it gets its own on Day 9.
+ * Enemy max-HP multiplier per act. All acts now have native rosters, so this
+ * is 1 everywhere; kept as the hook for future ascension-style difficulty.
  */
-export function actHpScale(act: number): number {
-  return act >= 3 ? 1.25 : 1;
+export function actHpScale(_act: number): number {
+  return 1;
 }
 
 export interface RunStats {
@@ -116,11 +116,27 @@ const ACT_2: ActEncounters = {
   boss: [['slime_king']],
 };
 
-/** Act 3 placeholder: act 2 roster, harder mixes, HP scaled via actHpScale. */
 const ACT_3: ActEncounters = {
-  normal: ACT_2.normal.map((tier) => ({ ...tier })),
-  elite: [['gremlin_nob', 'byrd'], ['chosen', 'chosen', 'byrd']],
-  boss: [['boss_maw']],
+  normal: [
+    { maxRow: 2, pool: [['darkling'], ['orb_walker'], ['writhing_mass']] },
+    {
+      maxRow: 5,
+      pool: [
+        ['darkling', 'darkling'],
+        ['spire_growth'],
+        ['orb_walker', 'darkling'],
+      ],
+    },
+    {
+      maxRow: Infinity,
+      pool: [
+        ['writhing_mass', 'orb_walker'],
+        ['spire_growth', 'darkling'],
+      ],
+    },
+  ],
+  elite: [['giant_head']],
+  boss: [['the_shadow']],
 };
 
 const ACTS: Record<number, ActEncounters> = { 1: ACT_1, 2: ACT_2, 3: ACT_3 };

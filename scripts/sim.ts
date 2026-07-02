@@ -56,3 +56,22 @@ table('Act 2 — mid-run deck', midRunDeck, 70, [
   ['gremlin_nob'],
   ['slime_king'],
 ]);
+
+table('Act 3 — mid-run deck', midRunDeck, 70, [
+  ['writhing_mass'],
+  ['spire_growth'],
+  ['darkling', 'darkling'],
+  ['giant_head'],
+  ['the_shadow'],
+]);
+
+// --- Full-run clear rate ---
+import('../src/sim/runSim').then(({ simulateFullRuns }) => {
+  const result = simulateFullRuns(300, 42);
+  console.log(`\nFull runs（${result.runs} runs）\n`);
+  console.log(`clear rate      ${(result.clearRate * 100).toFixed(1)}%`);
+  console.log(`avg act reached ${result.avgActReached.toFixed(2)}`);
+  console.log(`avg floors      ${result.avgFloorsEntered.toFixed(1)}`);
+  console.log(`avg deck size   ${result.avgFinalDeckSize.toFixed(1)}`);
+  console.log(`deaths by act   1:${result.deathsByAct[1]}  2:${result.deathsByAct[2]}  3:${result.deathsByAct[3]}`);
+});
