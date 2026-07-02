@@ -6,6 +6,11 @@ export class Rng {
     this.state = seed >>> 0;
   }
 
+  /** Serializable internal state; `new Rng(state)` resumes the exact sequence. */
+  getState(): number {
+    return this.state;
+  }
+
   /** Returns a float in [0, 1). */
   next(): number {
     this.state = (this.state + 0x6d2b79f5) >>> 0;

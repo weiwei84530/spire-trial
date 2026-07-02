@@ -279,6 +279,11 @@ export function makeCard(defId: string, upgraded = false): CardInstance {
   return { instanceId: nextInstanceId++, defId, upgraded };
 }
 
+/** After loading a save, keep new instance ids above the loaded ones. */
+export function ensureInstanceIdAbove(maxSeen: number): void {
+  if (maxSeen >= nextInstanceId) nextInstanceId = maxSeen + 1;
+}
+
 /** The starting deck: 5 Strikes, 4 Defends, 1 Bash. */
 export function makeStarterDeck(): CardInstance[] {
   const deck: CardInstance[] = [];

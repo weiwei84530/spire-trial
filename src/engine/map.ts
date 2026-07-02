@@ -87,6 +87,20 @@ export function generateMap(rng: Rng, opts: MapOptions = {}): GameMap {
     }
   }
 
+  // Guarantee at least one shop and one event per act by converting a random
+  // middle-row battle node (never row 0, the pre-boss rest row, or the boss).
+  const candidates = () =>
+    rows
+      .slice(1, rowCount - 2)
+      .flat()
+      .filter((n) => n.kind === 'battle');
+  for (const kind of ['shop', 'event'] as const) {
+    if (!rows.some((row) => row.some((n) => n.kind === kind))) {
+      const pool = candidates();
+      if (pool.length > 0) rng.pick(pool).kind = kind;
+    }
+  }
+
   return { rows };
 }
 

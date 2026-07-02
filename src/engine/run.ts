@@ -3,7 +3,7 @@
  * battle engine — the UI only calls the public methods and renders state.
  */
 import { Battle } from './battle';
-import { CARDS, makeCard, makeStarterDeck } from './cards';
+import { CARDS, ensureInstanceIdAbove, makeCard, makeStarterDeck } from './cards';
 import { EVENTS, type EventDef } from './events';
 import { generateMap, getNode, type GameMap, type MapNode, type NodeKind } from './map';
 import { getPotionDef, POTION_IDS } from './potions';
@@ -12,6 +12,29 @@ import { Rng } from './rng';
 import type { CardInstance, CardRarity } from './types';
 
 export type RunPhase = 'map' | 'battle' | 'reward' | 'rest' | 'event' | 'shop' | 'victory' | 'defeat';
+
+export interface RunStats {
+  battlesWon: number;
+  turnsTotal: number;
+  damageDealt: number;
+  damageTaken: number;
+}
+
+/** Snapshot of a run at map phase. Everything is plain JSON-able data. */
+export interface RunSave {
+  version: 1;
+  rngState: number;
+  map: GameMap;
+  currentNodeId: string | null;
+  visited: string[];
+  deck: CardInstance[];
+  hp: number;
+  maxHp: number;
+  gold: number;
+  relics: string[];
+  potions: string[];
+  stats: RunStats;
+}
 
 /** Normal encounter pools by map depth (row <= maxRow picks that tier). */
 const NORMAL_TIERS: { maxRow: number; pool: string[][] }[] = [
@@ -87,19 +110,60 @@ export class Run {
   currentNodeId: string | null = null;
   /** Node ids already entered, for map rendering. */
   readonly visited: string[] = [];
+  readonly stats: RunStats = { battlesWon: 0, turnsTotal: 0, damageDealt: 0, damageTaken: 0 };
   battle: Battle | null = null;
   reward: RewardBundle | null = null;
   currentEvent: EventDef | null = null;
   /** Result text of the chosen event option, shown before returning to the map. */
   eventResult: string | null = null;
   shop: ShopStock | null = null;
+  /** Player HP when the current battle started, for damage-taken stats. */
+  private battleStartHp = 0;
 
-  constructor(seed: number) {
+  constructor(seed: number, save?: RunSave) {
+    if (save) {
+      this.rng = new Rng(save.rngState);
+      this.map = save.map;
+      this.deck = save.deck;
+      this.hp = save.hp;
+      this.maxHp = save.maxHp;
+      this.gold = save.gold;
+      this.relics = [...save.relics];
+      this.potions = [...save.potions];
+      this.currentNodeId = save.currentNodeId;
+      this.visited = [...save.visited];
+      this.stats = { ...save.stats };
+      ensureInstanceIdAbove(Math.max(0, ...save.deck.map((c) => c.instanceId)));
+      return;
+    }
     this.rng = new Rng(seed);
     this.map = generateMap(this.rng);
     this.deck = makeStarterDeck();
     this.maxHp = 80;
     this.hp = 80;
+  }
+
+  /** Snapshot for persistence. Only legal between nodes (map phase). */
+  toSave(): RunSave {
+    if (this.phase !== 'map') throw new Error('Can only save at the map');
+    return {
+      version: 1,
+      rngState: this.rng.getState(),
+      map: this.map,
+      currentNodeId: this.currentNodeId,
+      visited: [...this.visited],
+      deck: this.deck.map((c) => ({ ...c })),
+      hp: this.hp,
+      maxHp: this.maxHp,
+      gold: this.gold,
+      relics: [...this.relics],
+      potions: [...this.potions],
+      stats: { ...this.stats },
+    };
+  }
+
+  static fromSave(save: RunSave): Run {
+    return new Run(0, save);
   }
 
   /** Nodes the player may enter right now (row 0 at start, else current node's edges). */
@@ -135,6 +199,7 @@ export class Run {
   // --- battle ---
 
   private startBattle(node: MapNode): void {
+    this.battleStartHp = this.hp;
     const enemies = this.rng.pick(this.encounterPool(node.kind, node.row));
     const startEffects = this.relics.flatMap((id) => getRelicDef(id).battleStart ?? []);
     this.battle = new Battle({
@@ -160,13 +225,23 @@ export class Run {
     const outcome = this.battle.state.phase;
     if (outcome === 'playerTurn') throw new Error('Battle still in progress');
 
+    // Damage dealt = total enemy HP removed (includes poison and thorns).
+    this.stats.turnsTotal += this.battle.state.turn;
+    this.stats.damageDealt += this.battle.state.enemies.reduce(
+      (sum, e) => sum + (e.maxHp - Math.max(0, e.hp)),
+      0,
+    );
+
     if (outcome === 'defeat') {
+      this.stats.damageTaken += this.battleStartHp;
       this.hp = 0;
       this.phase = 'defeat';
       this.battle = null;
       return;
     }
 
+    this.stats.battlesWon++;
+    this.stats.damageTaken += Math.max(0, this.battleStartHp - this.battle.state.player.hp);
     this.hp = this.battle.state.player.hp;
     const victoryHeal = this.relics.reduce((sum, id) => sum + (getRelicDef(id).victoryHeal ?? 0), 0);
     this.hp = Math.min(this.maxHp, this.hp + victoryHeal);

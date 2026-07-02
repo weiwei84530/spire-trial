@@ -187,6 +187,27 @@ body {
 .shop-row:hover:not(:disabled):not(.dimmed) { border-color: var(--energy); }
 .shop-row.dimmed { opacity: 0.4; cursor: default; }
 
+/* --- Pile overlay & stats --- */
+.pile-box {
+  max-width: 780px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 22px 30px;
+}
+.pile-box h2 { font-size: 20px; }
+
+.stats-table {
+  border-collapse: collapse;
+  margin: 6px 0 18px;
+  font-size: 14px;
+}
+.stats-table td {
+  padding: 5px 18px;
+  border-bottom: 1px solid var(--panel-2);
+}
+.stats-table td:first-child { color: var(--muted); text-align: left; }
+.stats-table td:last-child { text-align: right; }
+
 /* --- Enemies --- */
 .enemies-row {
   flex: 1;
@@ -293,6 +314,8 @@ body {
 }
 
 .piles { display: flex; flex-direction: column; gap: 2px; color: var(--muted); font-size: 13px; }
+.pile-link { cursor: pointer; }
+.pile-link:hover { color: var(--text); text-decoration: underline; }
 
 .end-turn {
   margin-left: auto;

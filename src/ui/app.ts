@@ -7,10 +7,11 @@
 import { resolveCard, getCardDef } from '../engine/cards';
 import { getPotionDef } from '../engine/potions';
 import { getRelicDef } from '../engine/relics';
-import { Run } from '../engine/run';
+import { Run, type RunSave } from '../engine/run';
 import type { MapNode, NodeKind } from '../engine/map';
 import type { CardDef, CardInstance, EnemyState } from '../engine/types';
 import { cardText, CARD_TYPE_NAMES, intentText, STATUS_NAMES } from './describe';
+import { clearSave, loadRun, saveRun } from './storage';
 
 const NODE_ICONS: Record<NodeKind, string> = {
   battle: '⚔',
@@ -81,20 +82,54 @@ export class App {
   private potionSelected: number | null = null;
   /** Shop: when true, clicking a deck card removes it (after paying). */
   private removeMode = false;
+  /** Battle: which pile's contents are shown in the overlay. */
+  private pileView: 'drawPile' | 'discardPile' | 'exhaustPile' | null = null;
+  /** A save found at startup, awaiting the player's resume/restart decision. */
+  private pendingResume: RunSave | null = null;
   private readonly root: HTMLElement;
 
   constructor(root: HTMLElement) {
     this.root = root;
     // Dev hook: lets browser-side tests drive the app without physical clicks.
     (window as unknown as { __app: App }).__app = this;
-    this.newRun();
+    this.pendingResume = loadRun();
+    if (this.pendingResume) {
+      this.renderResumePrompt();
+    } else {
+      this.newRun();
+    }
+  }
+
+  private renderResumePrompt(): void {
+    const save = this.pendingResume!;
+    this.root.innerHTML = `
+      <div class="game">
+        <div class="dialog-screen center">
+          <h2>發現進行中的冒險</h2>
+          <p>樓層 ${save.visited.length}／${save.map.rows.length}，❤ ${save.hp}/${save.maxHp}，💰 ${save.gold}，牌組 ${save.deck.length} 張</p>
+          <button class="primary-btn" data-resume>繼續冒險</button>
+          <button class="ghost-btn" data-abandon>放棄，重新開始</button>
+        </div>
+      </div>`;
+    this.root.querySelector('[data-resume]')?.addEventListener('click', () => {
+      this.run = Run.fromSave(this.pendingResume!);
+      this.pendingResume = null;
+      this.render();
+    });
+    this.root.querySelector('[data-abandon]')?.addEventListener('click', () => {
+      this.pendingResume = null;
+      clearSave();
+      this.newRun();
+    });
   }
 
   private newRun(): void {
+    clearSave();
     this.run = new Run((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0);
     this.selected = null;
     this.potionSelected = null;
     this.removeMode = false;
+    this.pileView = null;
     this.render();
   }
 
@@ -204,6 +239,10 @@ export class App {
     }
     this.root.innerHTML = `<div class="game">${this.topBarHtml()}${screen}</div>`;
     this.bind();
+
+    // Autosave between nodes; a finished run clears the slot.
+    if (this.run.phase === 'map') saveRun(this.run.toSave());
+    else if (this.run.phase === 'victory' || this.run.phase === 'defeat') clearSave();
   }
 
   private topBarHtml(): string {
@@ -294,14 +333,35 @@ export class App {
           </div>
           <div class="energy-orb" title="能量">${player.energy}/${player.maxEnergy}</div>
           <div class="piles">
-            <span>抽牌 ${player.drawPile.length}</span>
-            <span>棄牌 ${player.discardPile.length}</span>
-            <span>消耗 ${player.exhaustPile.length}</span>
+            <span class="pile-link" data-pile="drawPile">抽牌 ${player.drawPile.length}</span>
+            <span class="pile-link" data-pile="discardPile">棄牌 ${player.discardPile.length}</span>
+            <span class="pile-link" data-pile="exhaustPile">消耗 ${player.exhaustPile.length}</span>
           </div>
           <button class="end-turn">結束回合</button>
         </div>
         <div class="hand">${player.hand.map((c, i) => this.handCardHtml(c, i)).join('')}</div>
         <div class="log-panel">${battle.state.log.slice(-40).map((l) => `<div>${l}</div>`).join('')}</div>
+        ${this.pileView ? this.pileOverlayHtml() : ''}
+      </div>`;
+  }
+
+  private pileOverlayHtml(): string {
+    const battle = this.run.battle!;
+    const pileNames = { drawPile: '抽牌堆', discardPile: '棄牌堆', exhaustPile: '消耗堆' } as const;
+    const pile = battle.state.player[this.pileView!];
+    // Sorted by name so the draw pile view does not leak draw order.
+    const cards = [...pile]
+      .map((c) => resolveCard(c))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((def) => cardFaceHtml(def))
+      .join('');
+    return `
+      <div class="overlay" data-close-pile>
+        <div class="overlay-box pile-box">
+          <h2>${pileNames[this.pileView!]}（${pile.length} 張）</h2>
+          <div class="card-row wrap">${cards || '<p>（空）</p>'}</div>
+          <button class="ghost-btn" data-close-pile>關閉</button>
+        </div>
       </div>`;
   }
 
@@ -472,10 +532,24 @@ export class App {
   }
 
   private resultScreen(phase: 'victory' | 'defeat'): string {
+    const s = this.run.stats;
+    const rows: [string, string | number][] = [
+      ['抵達樓層', `${this.run.visited.length}/${this.run.map.rows.length}`],
+      ['戰鬥勝場', s.battlesWon],
+      ['戰鬥總回合', s.turnsTotal],
+      ['造成傷害', s.damageDealt],
+      ['承受傷害', s.damageTaken],
+      ['最終牌組', `${this.run.deck.length} 張`],
+      ['遺物', this.run.relics.map((id) => getRelicDef(id).name).join('、') || '無'],
+      ['剩餘金幣', this.run.gold],
+    ];
     return `
       <div class="dialog-screen center">
         <h2>${phase === 'victory' ? '🎉 通過第一幕！' : '💀 你死了…'}</h2>
         <p>${phase === 'victory' ? '擊敗頭目，本輪完成。' : `倒在樓層 ${this.run.visited.length}。`}</p>
+        <table class="stats-table">
+          ${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}
+        </table>
         <button class="primary-btn" data-new-run>開始新的一輪</button>
       </div>`;
   }
@@ -543,6 +617,14 @@ export class App {
     on('[data-leave-shop]', () => {
       this.removeMode = false;
       this.run.leaveShop();
+      this.render();
+    });
+    on('[data-pile]', (el) => {
+      this.pileView = el.dataset.pile as 'drawPile' | 'discardPile' | 'exhaustPile';
+      this.render();
+    });
+    on('[data-close-pile]', () => {
+      this.pileView = null;
       this.render();
     });
     on('[data-new-run]', () => this.newRun());
