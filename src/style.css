@@ -19,7 +19,11 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background:
+    radial-gradient(ellipse 120% 60% at 50% -10%, #262b3a 0%, transparent 60%),
+    radial-gradient(ellipse 100% 50% at 50% 110%, #1d1a24 0%, transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--text);
   font-family: "Segoe UI", "Microsoft JhengHei", system-ui, sans-serif;
   user-select: none;
@@ -62,6 +66,9 @@ body {
 
 .map-node circle { fill: var(--panel-2); stroke: #4a4f5a; stroke-width: 2; }
 .map-node text { font-size: 18px; }
+.map-node.kind-boss circle { stroke: var(--hp); }
+.map-node.kind-boss text { font-size: 24px; }
+.map-node.kind-elite circle { stroke: #7a5a6a; }
 .map-node.visited circle { fill: #191b20; stroke: #333; }
 .map-node.visited text { opacity: 0.45; }
 .map-node.current circle { stroke: #fff; stroke-width: 3; }
@@ -225,6 +232,7 @@ body {
   cursor: default;
   transition: transform 0.1s;
 }
+.enemy.big { width: 190px; }
 
 .enemy.dead { opacity: 0.25; filter: grayscale(1); }
 
@@ -234,7 +242,31 @@ body {
 }
 .enemy.targetable .enemy-art { outline: 2px solid var(--energy); outline-offset: 4px; border-radius: 8px; }
 
-.enemy-art svg { width: 110px; height: 82px; }
+.enemy-art { position: relative; padding-bottom: 8px; }
+.enemy-art::after {
+  /* Ground shadow anchors the sprite to the arena floor. */
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 70%;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.45), transparent 70%);
+}
+.enemy-art svg {
+  width: 110px;
+  height: 82px;
+  animation: idle-bob 3.2s ease-in-out infinite;
+}
+.enemy.big .enemy-art svg { width: 150px; height: 112px; }
+.enemy.dead .enemy-art svg { animation: none; }
+
+@keyframes idle-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
 
 .intent {
   font-size: 18px;
@@ -347,18 +379,25 @@ body {
 .card {
   width: 128px;
   height: 172px;
-  background: var(--panel-2);
+  background: linear-gradient(170deg, var(--panel-2) 0%, #23262e 70%, #1e2027 100%);
   border: 2px solid var(--junk);
   border-radius: 10px;
   padding: 8px 9px 6px;
   position: relative;
+  overflow: hidden;
   cursor: pointer;
   transition: transform 0.1s, box-shadow 0.1s;
   flex-shrink: 0;
 }
-.card.type-attack { border-color: var(--attack); }
-.card.type-skill { border-color: var(--skill); }
-.card.type-power { border-color: var(--power); }
+.card.type-attack { border-color: var(--attack); background: linear-gradient(170deg, #332326 0%, #262024 70%, #1f1c1f 100%); }
+.card.type-skill { border-color: var(--skill); background: linear-gradient(170deg, #22293a 0%, #20242e 70%, #1c1f27 100%); }
+.card.type-power { border-color: var(--power); background: linear-gradient(170deg, #33301f 0%, #282520 70%, #211f1c 100%); }
+
+/* Rarity: thin inner ring. Commons stay plain. */
+.card.rarity-uncommon { box-shadow: inset 0 0 0 1px rgba(97, 190, 190, 0.55); }
+.card.rarity-rare { box-shadow: inset 0 0 0 1px rgba(232, 185, 59, 0.65); }
+
+.card.upgraded .card-name { color: #7fd47f; }
 
 .card.playable:hover { transform: translateY(-10px); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6); }
 .card.selected { transform: translateY(-14px); box-shadow: 0 0 0 3px var(--energy); }
@@ -366,22 +405,39 @@ body {
 
 .cost {
   position: absolute;
-  top: -8px;
-  left: -8px;
-  width: 28px;
-  height: 28px;
+  top: 4px;
+  left: 4px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  background: var(--energy);
+  background: radial-gradient(circle at 35% 30%, #ffe28a, var(--energy) 60%, #8a6a12);
   color: #241d05;
   font-weight: 800;
   text-align: center;
-  line-height: 28px;
+  line-height: 26px;
   box-shadow: 0 1px 3px #000;
+  z-index: 2;
 }
 
-.card-name { font-weight: 700; font-size: 13px; margin: 2px 0 1px 14px; }
-.card-type { font-size: 10px; color: var(--muted); margin-left: 14px; }
-.card-text { font-size: 12px; margin-top: 10px; line-height: 1.45; color: var(--text); }
+.card-head {
+  margin-left: 26px;
+  min-height: 34px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  padding-bottom: 3px;
+}
+.card-name { font-weight: 700; font-size: 13px; margin: 1px 0 0 6px; }
+.card-type { font-size: 10px; color: var(--muted); margin-left: 6px; }
+.card-text { font-size: 12px; margin-top: 9px; line-height: 1.45; color: var(--text); position: relative; z-index: 1; }
+
+.card-watermark {
+  position: absolute;
+  bottom: -14px;
+  right: -6px;
+  font-size: 74px;
+  opacity: 0.07;
+  pointer-events: none;
+  line-height: 1;
+}
 
 /* --- Log --- */
 .log-panel {

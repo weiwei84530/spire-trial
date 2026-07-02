@@ -65,10 +65,58 @@ function enemyArt(defId: string): string {
       <path d="M30 52 q-14 -10 -10 -26 q10 6 12 24 M50 52 q14 -10 10 -26 q-10 6 -12 24" fill="var(--art)" opacity="0.8"/>
       <circle cx="41" cy="20" r="4" fill="#111" opacity="0.5"/></svg>`;
   }
+  if (defId === 'cultist' || defId === 'chosen') {
+    // Hooded robe with glowing eyes.
+    return `<svg viewBox="0 0 80 60"><path d="M40 4 q18 8 20 52 L20 56 q2 -44 20 -52 Z" fill="var(--art)"/>
+      <path d="M40 8 q11 6 13 22 L27 30 q2 -16 13 -22 Z" fill="#111" opacity="0.55"/>
+      <circle cx="35" cy="22" r="2.4" fill="#ffd75e"/><circle cx="45" cy="22" r="2.4" fill="#ffd75e"/>
+      <path d="M28 44 q12 6 24 0" stroke="#111" stroke-width="2" fill="none" opacity="0.4"/></svg>`;
+  }
+  if (defId === 'gremlin_nob' || defId === 'centurion') {
+    // Bulky warrior silhouette with a raised weapon.
+    return `<svg viewBox="0 0 80 60"><ellipse cx="38" cy="40" rx="20" ry="17" fill="var(--art)"/>
+      <circle cx="38" cy="18" r="10" fill="var(--art)"/>
+      <rect x="60" y="10" width="5" height="34" rx="2" fill="#8a8578"/>
+      <rect x="54" y="8" width="17" height="7" rx="2" fill="#b8b3a4"/>
+      <circle cx="34" cy="16" r="2.2" fill="#111"/><circle cx="42" cy="16" r="2.2" fill="#111"/>
+      <path d="M31 24 q7 4 14 0" stroke="#111" stroke-width="2" fill="none" opacity="0.6"/></svg>`;
+  }
+  if (defId === 'orb_walker') {
+    // Floating orb with a single lens and spindly legs.
+    return `<svg viewBox="0 0 80 60"><circle cx="40" cy="26" r="17" fill="var(--art)"/>
+      <circle cx="40" cy="26" r="8" fill="#111" opacity="0.6"/><circle cx="40" cy="26" r="3.5" fill="#ffd75e"/>
+      <path d="M28 38 L20 56 M40 43 L40 58 M52 38 L60 56" stroke="var(--art)" stroke-width="3" fill="none"/></svg>`;
+  }
+  if (defId === 'giant_head') {
+    // A colossal stone face.
+    return `<svg viewBox="0 0 80 60"><ellipse cx="40" cy="32" rx="28" ry="26" fill="var(--art)"/>
+      <ellipse cx="30" cy="26" rx="6" ry="4" fill="#111" opacity="0.75"/>
+      <ellipse cx="50" cy="26" rx="6" ry="4" fill="#111" opacity="0.75"/>
+      <circle cx="30" cy="26" r="1.8" fill="#ffd75e"/><circle cx="50" cy="26" r="1.8" fill="#ffd75e"/>
+      <path d="M28 46 q12 -6 24 0" stroke="#111" stroke-width="3" fill="none" opacity="0.6"/>
+      <path d="M14 18 L22 12 M66 18 L58 12" stroke="var(--art)" stroke-width="4"/></svg>`;
+  }
+  if (defId === 'the_shadow') {
+    // Layered wisp with a trailing tail.
+    return `<svg viewBox="0 0 80 60"><path d="M40 4 q22 10 18 34 q-2 16 -18 20 q-16 -4 -18 -20 q-4 -24 18 -34 Z" fill="var(--art)"/>
+      <path d="M40 10 q15 8 12 26 q-2 12 -12 15 q-10 -3 -12 -15 q-3 -18 12 -26 Z" fill="#111" opacity="0.35"/>
+      <circle cx="33" cy="26" r="3" fill="#c9b6ff"/><circle cx="47" cy="26" r="3" fill="#c9b6ff"/>
+      <path d="M26 52 q-6 6 -12 4 M54 52 q6 6 12 4" stroke="var(--art)" stroke-width="3" fill="none" opacity="0.7"/></svg>`;
+  }
+  if (defId === 'shelled_parasite') {
+    // Segmented shell with a soft underside.
+    return `<svg viewBox="0 0 80 60"><path d="M12 44 q28 -40 56 0 Z" fill="var(--art)"/>
+      <path d="M22 40 q18 -24 36 0 M30 42 q10 -14 20 0" stroke="#111" stroke-width="2" fill="none" opacity="0.35"/>
+      <ellipse cx="40" cy="48" rx="26" ry="7" fill="var(--art)" opacity="0.6"/>
+      <circle cx="34" cy="47" r="2" fill="#111"/><circle cx="46" cy="47" r="2" fill="#111"/></svg>`;
+  }
   return `<svg viewBox="0 0 80 60"><path d="M40 8 L62 56 L18 56 Z" fill="var(--art)"/>
     <circle cx="40" cy="26" r="9" fill="#111" opacity="0.6"/>
     <circle cx="37" cy="25" r="2" fill="#e8d44d"/><circle cx="44" cy="25" r="2" fill="#e8d44d"/></svg>`;
 }
+
+/** Enemies rendered at a larger scale (bosses and elites). */
+const BIG_ENEMIES = new Set(['boss_maw', 'slime_king', 'the_shadow', 'gremlin_nob', 'giant_head']);
 
 const ENEMY_COLORS: Record<string, string> = {
   jaw_worm: '#7aa35c',
@@ -92,14 +140,27 @@ const ENEMY_COLORS: Record<string, string> = {
   the_shadow: '#3a2f4f',
 };
 
+const CARD_TYPE_ICONS: Record<string, string> = {
+  attack: '⚔',
+  skill: '🛡',
+  power: '✦',
+  status: '☠',
+  curse: '☠',
+};
+
 /** Shared card face used by the hand, rewards, and the campfire deck list. */
 function cardFaceHtml(def: CardDef, extraClass = '', dataAttr = ''): string {
   const cost = def.cost === 'x' ? 'X' : String(def.cost);
+  const upgraded = def.name.endsWith('+') ? 'upgraded' : '';
+  const icon = CARD_TYPE_ICONS[def.type] ?? '❖';
   return `
-    <div class="card type-${def.type} ${extraClass}" ${dataAttr}>
+    <div class="card type-${def.type} rarity-${def.rarity} ${upgraded} ${extraClass}" ${dataAttr}>
       <div class="cost">${cost}</div>
-      <div class="card-name">${def.name}</div>
-      <div class="card-type">${CARD_TYPE_NAMES[def.type]}</div>
+      <div class="card-head">
+        <div class="card-name">${def.name}</div>
+        <div class="card-type">${icon} ${CARD_TYPE_NAMES[def.type]}</div>
+      </div>
+      <div class="card-watermark">${icon}</div>
       <div class="card-text">${cardText(def)}</div>
     </div>`;
 }
@@ -362,13 +423,14 @@ export class App {
         }
         const cls = [
           'map-node',
+          `kind-${node.kind}`,
           available.has(node.id) ? 'available' : '',
           visited.has(node.id) ? 'visited' : '',
           node.id === this.run.currentNodeId ? 'current' : '',
         ].join(' ');
         nodes += `
           <g class="${cls}" data-node="${node.id}" transform="translate(${x(node.col)},${y(node.row)})">
-            <circle r="22"/>
+            <circle r="${node.kind === 'boss' ? 30 : 22}"/>
             <text y="7" text-anchor="middle">${NODE_ICONS[node.kind]}</text>
             <title>${NODE_NAMES[node.kind]}</title>
           </g>`;
@@ -446,8 +508,9 @@ export class App {
     const battle = this.run.battle!;
     const intent = dead ? '' : `<div class="intent">${intentText(battle.intentOf(enemy))}</div>`;
     const targetable = (this.selected !== null || this.potionSelected !== null) && !dead;
+    const big = BIG_ENEMIES.has(enemy.defId) ? 'big' : '';
     return `
-      <div class="enemy ${dead ? 'dead' : ''} ${targetable ? 'targetable' : ''}" data-enemy="${index}"
+      <div class="enemy ${big} ${dead ? 'dead' : ''} ${targetable ? 'targetable' : ''}" data-enemy="${index}"
            style="--art:${ENEMY_COLORS[enemy.defId] ?? '#888'}">
         ${intent}
         <div class="enemy-art">${enemyArt(enemy.defId)}</div>
