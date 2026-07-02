@@ -9,7 +9,8 @@ export type StatusId =
   | 'poison'
   | 'ritual'
   | 'metallicize'
-  | 'thorns';
+  | 'thorns'
+  | 'energized';
 
 /** Target selector for effects. 'enemy' means the card's chosen target. */
 export type EffectTarget = 'enemy' | 'allEnemies' | 'self';

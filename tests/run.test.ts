@@ -154,11 +154,12 @@ describe('run flow', () => {
   });
 
   it('full runs always terminate in victory or defeat', () => {
-    let victories = 0;
+    let maxAct = 1;
     for (let seed = 0; seed < 20; seed++) {
       const run = new Run(1000 + seed);
-      let guard = 200;
+      let guard = 400;
       while (run.phase !== 'victory' && run.phase !== 'defeat' && guard-- > 0) {
+        maxAct = Math.max(maxAct, run.act);
         switch (run.phase) {
           case 'map':
             run.enterNode(run.rng.pick(run.availableNodes()).id);
@@ -167,6 +168,7 @@ describe('run flow', () => {
             autoBattle(run);
             break;
           case 'reward':
+          case 'actTransition':
             run.pickReward(run.reward!.cards[0] ?? null);
             break;
           case 'rest': {
@@ -191,9 +193,8 @@ describe('run flow', () => {
         }
       }
       expect(guard).toBeGreaterThan(0);
-      if (run.phase === 'victory') victories++;
     }
-    // The greedy policy should be able to win at least sometimes.
-    expect(victories).toBeGreaterThan(0);
+    // The greedy policy should at least clear act 1 sometimes.
+    expect(maxAct).toBeGreaterThanOrEqual(2);
   });
 });

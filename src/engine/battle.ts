@@ -31,6 +31,8 @@ export interface BattleConfig {
   enemies: string[];
   /** Player-sourced effects run once at battle start, after the opening draw (relics). */
   startEffects?: Effect[];
+  /** Multiplies enemy max HP (act difficulty scaling). */
+  enemyHpScale?: number;
 }
 
 const HAND_SIZE = 5;
@@ -63,6 +65,13 @@ export class Battle {
       (a, b) => Number(resolveCard(a).innate ?? false) - Number(resolveCard(b).innate ?? false),
     );
     const enemies = config.enemies.map((id) => spawnEnemy(id, this.rng));
+    const hpScale = config.enemyHpScale ?? 1;
+    if (hpScale !== 1) {
+      for (const enemy of enemies) {
+        enemy.maxHp = Math.round(enemy.maxHp * hpScale);
+        enemy.hp = enemy.maxHp;
+      }
+    }
     this.state = { turn: 1, phase: 'playerTurn', player, enemies, log: [] };
     this.startPlayerTurn();
     if (config.startEffects && config.startEffects.length > 0) {
@@ -164,6 +173,12 @@ export class Battle {
     decayStatuses(player);
     const metal = tickMetallicize(player);
     if (metal > 0) this.log(`Player gains ${metal} block from metallicize`);
+    // Player-side ritual (Demon Form style powers), mirroring the enemy rule.
+    const playerRitual = getStatus(player, 'ritual');
+    if (playerRitual > 0) {
+      addStatus(player, 'strength', playerRitual);
+      this.log(`Player gains ${playerRitual} strength from ritual`);
+    }
 
     for (const enemy of this.state.enemies) {
       if (enemy.hp <= 0) continue;
@@ -181,7 +196,7 @@ export class Battle {
     const poison = tickPoison(player);
     if (poison > 0) this.log(`Player takes ${poison} poison damage`);
     if (this.checkBattleEnd()) return;
-    player.energy = player.maxEnergy;
+    player.energy = player.maxEnergy + getStatus(player, 'energized');
     this.drawCards(HAND_SIZE);
   }
 

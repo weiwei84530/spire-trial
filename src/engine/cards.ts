@@ -186,6 +186,414 @@ define({
   },
 });
 
+// --- Day 7 pool expansion ---
+
+define({
+  id: 'anger',
+  name: 'Anger',
+  type: 'attack',
+  rarity: 'common',
+  cost: 0,
+  target: 'enemy',
+  // Copies are always unupgraded (simplification vs StS).
+  effects: [
+    { kind: 'damage', amount: 6 },
+    { kind: 'addCard', card: 'anger', destination: 'discardPile' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 8 },
+      { kind: 'addCard', card: 'anger', destination: 'discardPile' },
+    ],
+  },
+});
+
+define({
+  id: 'sucker_punch',
+  name: 'Sucker Punch',
+  type: 'attack',
+  rarity: 'common',
+  cost: 1,
+  target: 'enemy',
+  effects: [
+    { kind: 'damage', amount: 7 },
+    { kind: 'applyStatus', status: 'weak', stacks: 1, target: 'enemy' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 9 },
+      { kind: 'applyStatus', status: 'weak', stacks: 2, target: 'enemy' },
+    ],
+  },
+});
+
+define({
+  id: 'wild_strike',
+  name: 'Wild Strike',
+  type: 'attack',
+  rarity: 'common',
+  cost: 1,
+  target: 'enemy',
+  effects: [
+    { kind: 'damage', amount: 12 },
+    { kind: 'addCard', card: 'wound', destination: 'drawPile' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 17 },
+      { kind: 'addCard', card: 'wound', destination: 'drawPile' },
+    ],
+  },
+});
+
+define({
+  id: 'reckless_charge',
+  name: 'Reckless Charge',
+  type: 'attack',
+  rarity: 'common',
+  cost: 0,
+  target: 'enemy',
+  effects: [
+    { kind: 'damage', amount: 7 },
+    { kind: 'addCard', card: 'wound', destination: 'drawPile' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 10 },
+      { kind: 'addCard', card: 'wound', destination: 'drawPile' },
+    ],
+  },
+});
+
+define({
+  id: 'backflip',
+  name: 'Backflip',
+  type: 'skill',
+  rarity: 'common',
+  cost: 1,
+  target: 'none',
+  effects: [
+    { kind: 'block', amount: 5 },
+    { kind: 'draw', count: 2 },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'block', amount: 8 },
+      { kind: 'draw', count: 2 },
+    ],
+  },
+});
+
+define({
+  id: 'heavy_armor',
+  name: 'Heavy Armor',
+  type: 'skill',
+  rarity: 'common',
+  cost: 2,
+  target: 'none',
+  effects: [{ kind: 'block', amount: 13 }],
+  upgrade: { effects: [{ kind: 'block', amount: 17 }] },
+});
+
+define({
+  id: 'bloodletting',
+  name: 'Bloodletting',
+  type: 'skill',
+  rarity: 'common',
+  cost: 0,
+  target: 'none',
+  effects: [
+    { kind: 'loseHp', amount: 3 },
+    { kind: 'gainEnergy', amount: 2 },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'loseHp', amount: 2 },
+      { kind: 'gainEnergy', amount: 2 },
+    ],
+  },
+});
+
+define({
+  id: 'battle_trance',
+  name: 'Battle Trance',
+  type: 'skill',
+  rarity: 'common',
+  cost: 0,
+  target: 'none',
+  effects: [{ kind: 'draw', count: 3 }],
+  upgrade: { effects: [{ kind: 'draw', count: 4 }] },
+});
+
+define({
+  id: 'clothesline',
+  name: 'Clothesline',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 2,
+  target: 'enemy',
+  effects: [
+    { kind: 'damage', amount: 12 },
+    { kind: 'applyStatus', status: 'weak', stacks: 2, target: 'enemy' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 14 },
+      { kind: 'applyStatus', status: 'weak', stacks: 3, target: 'enemy' },
+    ],
+  },
+});
+
+define({
+  id: 'uppercut',
+  name: 'Uppercut',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 2,
+  target: 'enemy',
+  effects: [
+    { kind: 'damage', amount: 13 },
+    { kind: 'applyStatus', status: 'weak', stacks: 1, target: 'enemy' },
+    { kind: 'applyStatus', status: 'vulnerable', stacks: 1, target: 'enemy' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 13 },
+      { kind: 'applyStatus', status: 'weak', stacks: 2, target: 'enemy' },
+      { kind: 'applyStatus', status: 'vulnerable', stacks: 2, target: 'enemy' },
+    ],
+  },
+});
+
+define({
+  id: 'hemokinesis',
+  name: 'Hemokinesis',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'enemy',
+  effects: [
+    { kind: 'loseHp', amount: 2 },
+    { kind: 'damage', amount: 15 },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'loseHp', amount: 2 },
+      { kind: 'damage', amount: 20 },
+    ],
+  },
+});
+
+define({
+  id: 'pummel',
+  name: 'Pummel',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'enemy',
+  exhaust: true,
+  effects: [{ kind: 'damage', amount: 2, times: 4 }],
+  upgrade: { effects: [{ kind: 'damage', amount: 2, times: 5 }] },
+});
+
+define({
+  id: 'venom_strike',
+  name: 'Venom Strike',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'enemy',
+  effects: [
+    { kind: 'damage', amount: 6 },
+    { kind: 'applyStatus', status: 'poison', stacks: 3, target: 'enemy' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 8 },
+      { kind: 'applyStatus', status: 'poison', stacks: 4, target: 'enemy' },
+    ],
+  },
+});
+
+define({
+  id: 'dash',
+  name: 'Dash',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 2,
+  target: 'enemy',
+  effects: [
+    { kind: 'block', amount: 10 },
+    { kind: 'damage', amount: 10 },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'block', amount: 13 },
+      { kind: 'damage', amount: 13 },
+    ],
+  },
+});
+
+define({
+  id: 'disarm',
+  name: 'Disarm',
+  type: 'skill',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'enemy',
+  exhaust: true,
+  effects: [{ kind: 'applyStatus', status: 'strength', stacks: -2, target: 'enemy' }],
+  upgrade: { effects: [{ kind: 'applyStatus', status: 'strength', stacks: -3, target: 'enemy' }] },
+});
+
+define({
+  id: 'flex',
+  name: 'Flex',
+  type: 'skill',
+  rarity: 'common',
+  cost: 0,
+  target: 'none',
+  exhaust: true,
+  effects: [{ kind: 'applyStatus', status: 'strength', stacks: 1, target: 'self' }],
+  upgrade: { effects: [{ kind: 'applyStatus', status: 'strength', stacks: 2, target: 'self' }] },
+});
+
+define({
+  id: 'shockwave',
+  name: 'Shockwave',
+  type: 'skill',
+  rarity: 'uncommon',
+  cost: 2,
+  target: 'none',
+  exhaust: true,
+  effects: [
+    { kind: 'applyStatus', status: 'weak', stacks: 3, target: 'allEnemies' },
+    { kind: 'applyStatus', status: 'vulnerable', stacks: 3, target: 'allEnemies' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'applyStatus', status: 'weak', stacks: 5, target: 'allEnemies' },
+      { kind: 'applyStatus', status: 'vulnerable', stacks: 5, target: 'allEnemies' },
+    ],
+  },
+});
+
+define({
+  id: 'terror',
+  name: 'Terror',
+  type: 'skill',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'enemy',
+  exhaust: true,
+  effects: [{ kind: 'applyStatus', status: 'vulnerable', stacks: 5, target: 'enemy' }],
+  upgrade: { cost: 0 },
+});
+
+define({
+  id: 'shiv',
+  name: 'Shiv',
+  type: 'attack',
+  rarity: 'special',
+  cost: 0,
+  target: 'enemy',
+  exhaust: true,
+  effects: [{ kind: 'damage', amount: 4 }],
+  upgrade: { effects: [{ kind: 'damage', amount: 6 }] },
+});
+
+define({
+  id: 'blade_dance',
+  name: 'Blade Dance',
+  type: 'skill',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'none',
+  effects: [{ kind: 'addCard', card: 'shiv', count: 3, destination: 'hand' }],
+  upgrade: { effects: [{ kind: 'addCard', card: 'shiv', count: 4, destination: 'hand' }] },
+});
+
+define({
+  id: 'cloak_and_dagger',
+  name: 'Cloak and Dagger',
+  type: 'skill',
+  rarity: 'common',
+  cost: 1,
+  target: 'none',
+  effects: [
+    { kind: 'block', amount: 6 },
+    { kind: 'addCard', card: 'shiv', count: 1, destination: 'hand' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'block', amount: 6 },
+      { kind: 'addCard', card: 'shiv', count: 2, destination: 'hand' },
+    ],
+  },
+});
+
+define({
+  id: 'adrenaline',
+  name: 'Adrenaline',
+  type: 'skill',
+  rarity: 'rare',
+  cost: 0,
+  target: 'none',
+  exhaust: true,
+  effects: [
+    { kind: 'gainEnergy', amount: 1 },
+    { kind: 'draw', count: 2 },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'gainEnergy', amount: 2 },
+      { kind: 'draw', count: 2 },
+    ],
+  },
+});
+
+define({
+  id: 'impervious',
+  name: 'Impervious',
+  type: 'skill',
+  rarity: 'rare',
+  cost: 2,
+  target: 'none',
+  exhaust: true,
+  effects: [{ kind: 'block', amount: 30 }],
+  upgrade: { effects: [{ kind: 'block', amount: 40 }] },
+});
+
+define({
+  id: 'demon_form',
+  name: 'Demon Form',
+  type: 'power',
+  rarity: 'rare',
+  cost: 3,
+  target: 'none',
+  effects: [{ kind: 'applyStatus', status: 'ritual', stacks: 2, target: 'self' }],
+  upgrade: { effects: [{ kind: 'applyStatus', status: 'ritual', stacks: 3, target: 'self' }] },
+});
+
+define({
+  id: 'berserk',
+  name: 'Berserk',
+  type: 'power',
+  rarity: 'rare',
+  cost: 0,
+  target: 'none',
+  effects: [
+    { kind: 'applyStatus', status: 'vulnerable', stacks: 2, target: 'self' },
+    { kind: 'applyStatus', status: 'energized', stacks: 1, target: 'self' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'applyStatus', status: 'vulnerable', stacks: 1, target: 'self' },
+      { kind: 'applyStatus', status: 'energized', stacks: 1, target: 'self' },
+    ],
+  },
+});
+
 // --- Status & curse cards (unplayable junk that clogs the deck) ---
 
 define({

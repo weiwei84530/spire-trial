@@ -16,6 +16,8 @@ const STATUS_VALUE: Record<string, number> = {
   dexterity: 5,
   metallicize: 6,
   thorns: 3,
+  ritual: 9,
+  energized: 9,
 };
 
 /** Total damage the enemies intend to deal this turn. */

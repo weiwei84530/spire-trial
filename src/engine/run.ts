@@ -11,7 +11,23 @@ import { RELICS, getRelicDef } from './relics';
 import { Rng } from './rng';
 import type { CardInstance, CardRarity } from './types';
 
-export type RunPhase = 'map' | 'battle' | 'reward' | 'rest' | 'event' | 'shop' | 'victory' | 'defeat';
+export type RunPhase =
+  | 'map'
+  | 'battle'
+  | 'reward'
+  | 'rest'
+  | 'event'
+  | 'shop'
+  | 'actTransition'
+  | 'victory'
+  | 'defeat';
+
+export const ACT_COUNT = 3;
+
+/** Enemy max-HP multiplier per act (placeholder scaling until acts get their own rosters). */
+export function actHpScale(act: number): number {
+  return 1 + 0.35 * (act - 1);
+}
 
 export interface RunStats {
   battlesWon: number;
@@ -24,6 +40,7 @@ export interface RunStats {
 export interface RunSave {
   version: 1;
   rngState: number;
+  act: number;
   map: GameMap;
   currentNodeId: string | null;
   visited: string[];
@@ -99,7 +116,8 @@ export interface ShopStock {
 
 export class Run {
   readonly rng: Rng;
-  readonly map: GameMap;
+  map: GameMap;
+  act = 1;
   readonly deck: CardInstance[];
   hp: number;
   maxHp: number;
@@ -123,6 +141,7 @@ export class Run {
   constructor(seed: number, save?: RunSave) {
     if (save) {
       this.rng = new Rng(save.rngState);
+      this.act = save.act ?? 1;
       this.map = save.map;
       this.deck = save.deck;
       this.hp = save.hp;
@@ -149,6 +168,7 @@ export class Run {
     return {
       version: 1,
       rngState: this.rng.getState(),
+      act: this.act,
       map: this.map,
       currentNodeId: this.currentNodeId,
       visited: [...this.visited],
@@ -209,6 +229,7 @@ export class Run {
       playerMaxHp: this.maxHp,
       enemies,
       startEffects,
+      enemyHpScale: actHpScale(this.act),
     });
     this.phase = 'battle';
   }
@@ -249,7 +270,17 @@ export class Run {
     const node = getNode(this.map, this.currentNodeId!);
     this.battle = null;
     if (node.kind === 'boss') {
-      this.phase = 'victory';
+      if (this.act >= ACT_COUNT) {
+        this.phase = 'victory';
+        return;
+      }
+      // Act cleared: boss loot, then pickReward() advances to the next act.
+      const bossGold = this.rng.int(60, 75);
+      this.gold += bossGold;
+      const relic = this.randomUnownedRelic();
+      if (relic) this.relics.push(relic);
+      this.reward = { gold: bossGold, cards: this.rollCardRewards(), relic, potion: null };
+      this.phase = 'actTransition';
       return;
     }
 
@@ -311,14 +342,28 @@ export class Run {
     return pool.length > 0 ? this.rng.pick(pool) : null;
   }
 
-  /** Take one offered card (or null to skip) and return to the map. */
+  /** Take one offered card (or null to skip); returns to the map or starts the next act. */
   pickReward(defId: string | null): void {
-    if (this.phase !== 'reward' || !this.reward) throw new Error('No reward pending');
+    if ((this.phase !== 'reward' && this.phase !== 'actTransition') || !this.reward) {
+      throw new Error('No reward pending');
+    }
     if (defId !== null) {
       if (!this.reward.cards.includes(defId)) throw new Error(`${defId} was not offered`);
       this.deck.push(makeCard(defId));
     }
+    const advancing = this.phase === 'actTransition';
     this.reward = null;
+    if (advancing) this.advanceAct();
+    else this.phase = 'map';
+  }
+
+  /** Full heal, fresh map, next act. */
+  private advanceAct(): void {
+    this.act++;
+    this.hp = this.maxHp;
+    this.map = generateMap(this.rng);
+    this.currentNodeId = null;
+    this.visited.length = 0;
     this.phase = 'map';
   }
 

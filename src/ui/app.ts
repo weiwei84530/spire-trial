@@ -223,6 +223,9 @@ export class App {
       case 'reward':
         screen = this.rewardScreen();
         break;
+      case 'actTransition':
+        screen = this.actTransitionScreen();
+        break;
       case 'rest':
         screen = this.restScreen();
         break;
@@ -268,7 +271,27 @@ export class App {
         <span>🂠 牌組 ${this.run.deck.length}</span>
         <span class="chip-group">${relics}</span>
         <span class="chip-group">${potions}</span>
-        <span class="top-bar-right">樓層 ${floor}/${this.run.map.rows.length}</span>
+        <span class="top-bar-right">第 ${this.run.act} 幕・樓層 ${floor}/${this.run.map.rows.length}</span>
+      </div>`;
+  }
+
+  private actTransitionScreen(): string {
+    const reward = this.run.reward!;
+    const extras: string[] = [`💰 +${reward.gold} 金幣`, '❤ 進入下一幕時完全回復生命'];
+    if (reward.relic) {
+      const def = getRelicDef(reward.relic);
+      extras.push(`🏺 ${def.name} — ${def.desc}`);
+    }
+    const cards = reward.cards
+      .map((id) => cardFaceHtml(getCardDef(id), 'pickable', `data-reward="${id}"`))
+      .join('');
+    return `
+      <div class="dialog-screen">
+        <h2>🎉 第 ${this.run.act} 幕完成！</h2>
+        <div class="reward-extras">${extras.map((e) => `<div>${e}</div>`).join('')}</div>
+        <h3>選擇一張卡牌，然後前往第 ${this.run.act + 1} 幕：</h3>
+        <div class="card-row">${cards}</div>
+        <button class="ghost-btn" data-skip-reward>跳過卡牌，直接前進</button>
       </div>`;
   }
 

@@ -17,6 +17,7 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   ritual: '儀式',
   metallicize: '金屬化',
   thorns: '反傷',
+  energized: '蓄能',
 };
 
 const PILE_NAMES: Record<string, string> = {
