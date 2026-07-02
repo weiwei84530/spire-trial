@@ -5,6 +5,8 @@
  * places that touch the DOM.
  */
 import { resolveCard, getCardDef } from '../engine/cards';
+import { getPotionDef } from '../engine/potions';
+import { getRelicDef } from '../engine/relics';
 import { Run } from '../engine/run';
 import type { MapNode, NodeKind } from '../engine/map';
 import type { CardDef, CardInstance, EnemyState } from '../engine/types';
@@ -14,6 +16,8 @@ const NODE_ICONS: Record<NodeKind, string> = {
   battle: '⚔',
   elite: '💀',
   rest: '🔥',
+  event: '❓',
+  shop: '🛒',
   boss: '👑',
 };
 
@@ -21,6 +25,8 @@ const NODE_NAMES: Record<NodeKind, string> = {
   battle: '戰鬥',
   elite: '精英',
   rest: '營火',
+  event: '事件',
+  shop: '商店',
   boss: '頭目',
 };
 
@@ -71,6 +77,10 @@ function cardFaceHtml(def: CardDef, extraClass = '', dataAttr = ''): string {
 export class App {
   private run!: Run;
   private selected: number | null = null;
+  /** Potion index waiting for an enemy target. */
+  private potionSelected: number | null = null;
+  /** Shop: when true, clicking a deck card removes it (after paying). */
+  private removeMode = false;
   private readonly root: HTMLElement;
 
   constructor(root: HTMLElement) {
@@ -83,6 +93,8 @@ export class App {
   private newRun(): void {
     this.run = new Run((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0);
     this.selected = null;
+    this.potionSelected = null;
+    this.removeMode = false;
     this.render();
   }
 
@@ -120,12 +132,38 @@ export class App {
 
   private onEnemyClick(enemyIndex: number): void {
     const battle = this.run.battle;
-    if (!battle || this.selected === null) return;
+    if (!battle) return;
+    if (this.potionSelected !== null) {
+      const enemy = battle.state.enemies[enemyIndex];
+      if (enemy && enemy.hp > 0) {
+        this.run.usePotion(this.potionSelected, enemyIndex);
+        this.potionSelected = null;
+        this.render();
+      }
+      return;
+    }
+    if (this.selected === null) return;
     if (battle.canPlay(this.selected, enemyIndex)) {
       battle.playCard(this.selected, enemyIndex);
       this.selected = null;
       this.battleActionDone();
     }
+  }
+
+  private onPotionClick(index: number): void {
+    if (this.run.phase !== 'battle') return;
+    const id = this.run.potions[index];
+    if (!id) return;
+    if (getPotionDef(id).target === 'enemy') {
+      // Toggle potion targeting mode (cancels card selection).
+      this.selected = null;
+      this.potionSelected = this.potionSelected === index ? null : index;
+      this.render();
+      return;
+    }
+    this.run.usePotion(index);
+    this.potionSelected = null;
+    this.render();
   }
 
   private onEndTurn(): void {
@@ -153,6 +191,12 @@ export class App {
       case 'rest':
         screen = this.restScreen();
         break;
+      case 'event':
+        screen = this.eventScreen();
+        break;
+      case 'shop':
+        screen = this.shopScreen();
+        break;
       case 'victory':
       case 'defeat':
         screen = this.resultScreen(this.run.phase);
@@ -164,11 +208,28 @@ export class App {
 
   private topBarHtml(): string {
     const floor = this.run.currentNodeId ? getNodeRow(this.run, this.run.currentNodeId) + 1 : 0;
+    const relics = this.run.relics
+      .map((id) => {
+        const def = getRelicDef(id);
+        return `<span class="relic-chip" title="${def.name}：${def.desc}">🏺</span>`;
+      })
+      .join('');
+    const inBattle = this.run.phase === 'battle';
+    const potions = this.run.potions
+      .map((id, i) => {
+        const def = getPotionDef(id);
+        const cls = `potion-chip ${inBattle ? 'usable' : ''} ${this.potionSelected === i ? 'selected' : ''}`;
+        return `<span class="${cls}" data-potion="${i}" title="${def.name}：${def.desc}${inBattle ? '（點擊使用）' : ''}">🧪</span>`;
+      })
+      .join('');
     return `
       <div class="top-bar">
         <span>❤ ${this.run.hp}/${this.run.maxHp}</span>
+        <span>💰 ${this.run.gold}</span>
         <span>🂠 牌組 ${this.run.deck.length}</span>
-        <span>樓層 ${floor}/${this.run.map.rows.length}</span>
+        <span class="chip-group">${relics}</span>
+        <span class="chip-group">${potions}</span>
+        <span class="top-bar-right">樓層 ${floor}/${this.run.map.rows.length}</span>
       </div>`;
   }
 
@@ -248,7 +309,7 @@ export class App {
     const dead = enemy.hp <= 0;
     const battle = this.run.battle!;
     const intent = dead ? '' : `<div class="intent">${intentText(battle.intentOf(enemy))}</div>`;
-    const targetable = this.selected !== null && !dead;
+    const targetable = (this.selected !== null || this.potionSelected !== null) && !dead;
     return `
       <div class="enemy ${dead ? 'dead' : ''} ${targetable ? 'targetable' : ''}" data-enemy="${index}"
            style="--art:${ENEMY_COLORS[enemy.defId] ?? '#888'}">
@@ -290,14 +351,104 @@ export class App {
   // --- reward / rest / result screens ---
 
   private rewardScreen(): string {
-    const cards = (this.run.cardRewards ?? [])
+    const reward = this.run.reward!;
+    const cards = reward.cards
       .map((id) => cardFaceHtml(getCardDef(id), 'pickable', `data-reward="${id}"`))
       .join('');
+    const extras: string[] = [`💰 +${reward.gold} 金幣`];
+    if (reward.relic) {
+      const def = getRelicDef(reward.relic);
+      extras.push(`🏺 ${def.name} — ${def.desc}`);
+    }
+    if (reward.potion) {
+      const def = getPotionDef(reward.potion);
+      extras.push(`🧪 ${def.name} — ${def.desc}`);
+    }
     return `
       <div class="dialog-screen">
-        <h2>勝利！選擇一張卡牌</h2>
+        <h2>勝利！</h2>
+        <div class="reward-extras">${extras.map((e) => `<div>${e}</div>`).join('')}</div>
+        <h3>選擇一張卡牌：</h3>
         <div class="card-row">${cards}</div>
-        <button class="ghost-btn" data-skip-reward>跳過獎勵</button>
+        <button class="ghost-btn" data-skip-reward>跳過卡牌</button>
+      </div>`;
+  }
+
+  private eventScreen(): string {
+    const event = this.run.currentEvent!;
+    if (this.run.eventResult !== null) {
+      return `
+        <div class="dialog-screen center">
+          <h2>❓ ${event.title}</h2>
+          <p class="event-text">${this.run.eventResult}</p>
+          <button class="primary-btn" data-leave-event>繼續</button>
+        </div>`;
+    }
+    const choices = event.choices
+      .map((c, i) => {
+        const ok = this.run.canChooseEventOption(i);
+        return `<button class="choice-btn" data-event-choice="${i}" ${ok ? '' : 'disabled'}>${c.label}</button>`;
+      })
+      .join('');
+    return `
+      <div class="dialog-screen center">
+        <h2>❓ ${event.title}</h2>
+        <p class="event-text">${event.text}</p>
+        <div class="choice-list">${choices}</div>
+      </div>`;
+  }
+
+  private shopScreen(): string {
+    const shop = this.run.shop!;
+    const cardItems = shop.cards
+      .map((item, i) => {
+        if (item.sold) return `<div class="shop-item sold">已售出</div>`;
+        const afford = this.run.gold >= item.price;
+        return `
+          <div class="shop-item">
+            ${cardFaceHtml(getCardDef(item.defId), afford ? 'pickable' : 'dimmed', afford ? `data-buy-card="${i}"` : '')}
+            <div class="price-tag">💰 ${item.price}</div>
+          </div>`;
+      })
+      .join('');
+    const relicItems = shop.relics
+      .map((item, i) => {
+        if (item.sold) return '';
+        const def = getRelicDef(item.id);
+        const afford = this.run.gold >= item.price;
+        return `
+          <button class="shop-row ${afford ? '' : 'dimmed'}" data-buy-relic="${i}" ${afford ? '' : 'disabled'}>
+            🏺 ${def.name} — ${def.desc} <span class="price-tag">💰 ${item.price}</span>
+          </button>`;
+      })
+      .join('');
+    const potionItems = shop.potions
+      .map((item, i) => {
+        if (item.sold) return '';
+        const def = getPotionDef(item.id);
+        const afford = this.run.gold >= item.price && this.run.potions.length < 3;
+        return `
+          <button class="shop-row ${afford ? '' : 'dimmed'}" data-buy-potion="${i}" ${afford ? '' : 'disabled'}>
+            🧪 ${def.name} — ${def.desc} <span class="price-tag">💰 ${item.price}</span>
+          </button>`;
+      })
+      .join('');
+    const removeAfford = !shop.removeUsed && this.run.gold >= shop.removePrice;
+    const removeSection = this.removeMode
+      ? `<h3>點選要刪除的卡牌：</h3>
+         <div class="card-row wrap">${this.run.deck
+           .map((card, i) => cardFaceHtml(resolveCard(card), 'pickable', `data-remove-card="${i}"`))
+           .join('')}</div>
+         <button class="ghost-btn" data-cancel-remove>取消</button>`
+      : `<button class="shop-row ${removeAfford ? '' : 'dimmed'}" data-remove-mode ${removeAfford ? '' : 'disabled'}>
+           ✂ 刪除一張卡牌 <span class="price-tag">💰 ${shop.removePrice}</span>${shop.removeUsed ? '（已使用）' : ''}
+         </button>`;
+    return `
+      <div class="dialog-screen">
+        <h2>🛒 商店</h2>
+        <div class="card-row">${cardItems}</div>
+        <div class="shop-rows">${relicItems}${potionItems}${removeSection}</div>
+        <button class="ghost-btn" data-leave-shop>離開商店</button>
       </div>`;
   }
 
@@ -353,6 +504,45 @@ export class App {
     });
     on('[data-upgrade]', (el) => {
       this.run.restUpgrade(Number(el.dataset.upgrade));
+      this.render();
+    });
+    on('[data-potion]', (el) => this.onPotionClick(Number(el.dataset.potion)));
+    on('[data-event-choice]', (el) => {
+      this.run.chooseEventOption(Number(el.dataset.eventChoice));
+      this.render();
+    });
+    on('[data-leave-event]', () => {
+      this.run.leaveEvent();
+      this.render();
+    });
+    on('[data-buy-card]', (el) => {
+      this.run.buyCard(Number(el.dataset.buyCard));
+      this.render();
+    });
+    on('[data-buy-relic]', (el) => {
+      this.run.buyRelic(Number(el.dataset.buyRelic));
+      this.render();
+    });
+    on('[data-buy-potion]', (el) => {
+      this.run.buyPotion(Number(el.dataset.buyPotion));
+      this.render();
+    });
+    on('[data-remove-mode]', () => {
+      this.removeMode = true;
+      this.render();
+    });
+    on('[data-cancel-remove]', () => {
+      this.removeMode = false;
+      this.render();
+    });
+    on('[data-remove-card]', (el) => {
+      this.run.removeCard(Number(el.dataset.removeCard));
+      this.removeMode = false;
+      this.render();
+    });
+    on('[data-leave-shop]', () => {
+      this.removeMode = false;
+      this.run.leaveShop();
       this.render();
     });
     on('[data-new-run]', () => this.newRun());

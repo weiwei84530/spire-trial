@@ -29,6 +29,8 @@ export interface BattleConfig {
   maxEnergy?: number;
   /** Enemy def ids, left to right. */
   enemies: string[];
+  /** Player-sourced effects run once at battle start, after the opening draw (relics). */
+  startEffects?: Effect[];
 }
 
 const HAND_SIZE = 5;
@@ -63,6 +65,22 @@ export class Battle {
     const enemies = config.enemies.map((id) => spawnEnemy(id, this.rng));
     this.state = { turn: 1, phase: 'playerTurn', player, enemies, log: [] };
     this.startPlayerTurn();
+    if (config.startEffects && config.startEffects.length > 0) {
+      this.log('Relics trigger');
+      this.executeEffects(config.startEffects, player);
+    }
+  }
+
+  /** Applies a potion's effects (no energy cost). Consumption is the caller's job. */
+  usePotion(effects: Effect[], targetIndex?: number): void {
+    if (this.state.phase !== 'playerTurn') throw new Error('Battle is over');
+    let target: EnemyState | undefined;
+    if (targetIndex !== undefined) {
+      target = this.state.enemies[targetIndex];
+      if (!target || target.hp <= 0) throw new Error('Invalid potion target');
+    }
+    this.executeEffects(effects, this.state.player, target);
+    this.checkBattleEnd();
   }
 
   /** Resolves an enemy's next move into display/AI-friendly numbers. */
@@ -260,6 +278,11 @@ export class Battle {
         case 'loseHp': {
           source.hp = Math.max(0, source.hp - effect.amount);
           this.log(`${this.nameOf(source)} loses ${effect.amount} HP`);
+          break;
+        }
+        case 'heal': {
+          source.hp = Math.min(source.maxHp, source.hp + effect.amount);
+          this.log(`${this.nameOf(source)} heals ${effect.amount}`);
           break;
         }
         case 'addCard': {

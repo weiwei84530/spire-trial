@@ -26,6 +26,7 @@ export type Effect =
   | { kind: 'draw'; count: number }
   | { kind: 'gainEnergy'; amount: number }
   | { kind: 'loseHp'; amount: number }
+  | { kind: 'heal'; amount: number }
   | { kind: 'addCard'; card: string; count?: number; destination: PileId };
 
 export type CardType = 'attack' | 'skill' | 'power' | 'status' | 'curse';

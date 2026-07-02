@@ -1,6 +1,6 @@
 import type { Rng } from './rng';
 
-export type NodeKind = 'battle' | 'elite' | 'rest' | 'boss';
+export type NodeKind = 'battle' | 'elite' | 'rest' | 'event' | 'shop' | 'boss';
 
 export interface MapNode {
   id: string;
@@ -23,7 +23,9 @@ export interface MapOptions {
 
 const ELITE_MIN_ROW = 3;
 const ELITE_CHANCE = 0.16;
-const REST_CHANCE = 0.14;
+const REST_CHANCE = 0.12;
+const SHOP_CHANCE = 0.09;
+const EVENT_CHANCE = 0.18;
 
 function kindFor(row: number, rowCount: number, rng: Rng): NodeKind {
   if (row === 0) return 'battle';
@@ -31,6 +33,8 @@ function kindFor(row: number, rowCount: number, rng: Rng): NodeKind {
   if (row === rowCount - 2) return 'rest'; // guaranteed campfire before the boss
   if (row >= ELITE_MIN_ROW && rng.next() < ELITE_CHANCE) return 'elite';
   if (row >= 2 && rng.next() < REST_CHANCE) return 'rest';
+  if (row >= 1 && rng.next() < SHOP_CHANCE) return 'shop';
+  if (row >= 1 && rng.next() < EVENT_CHANCE) return 'event';
   return 'battle';
 }
 

@@ -85,9 +85,10 @@ describe('run flow', () => {
     expect(run.phase).toBe('reward');
     expect(run.hp).toBeLessThanOrEqual(80);
     expect(run.hp).toBeGreaterThan(0);
-    expect(run.cardRewards).toHaveLength(3);
+    expect(run.reward!.cards).toHaveLength(3);
+    expect(run.reward!.gold).toBeGreaterThan(0);
 
-    const pick = run.cardRewards![0]!;
+    const pick = run.reward!.cards[0]!;
     run.pickReward(pick);
     expect(run.deck).toHaveLength(11);
     expect(run.deck[10]!.defId).toBe(pick);
@@ -114,7 +115,7 @@ describe('run flow', () => {
       run.enterNode(run.availableNodes()[0]!.id);
       autoBattle(run);
       if (run.phase !== 'reward') continue; // rare defeat, skip
-      const rewards = run.cardRewards!;
+      const rewards = run.reward!.cards;
       expect(new Set(rewards).size).toBe(rewards.length);
       for (const id of rewards) {
         const def = getCardDef(id);
@@ -166,12 +167,25 @@ describe('run flow', () => {
             autoBattle(run);
             break;
           case 'reward':
-            run.pickReward(run.cardRewards![0]!);
+            run.pickReward(run.reward!.cards[0] ?? null);
             break;
           case 'rest': {
             const upIdx = run.deck.findIndex((_, i) => run.canUpgrade(i));
             if (run.hp < run.maxHp * 0.6 || upIdx < 0) run.restHeal();
             else run.restUpgrade(upIdx);
+            break;
+          }
+          case 'event': {
+            const idx = run.currentEvent!.choices.findIndex((_, i) => run.canChooseEventOption(i));
+            run.chooseEventOption(idx);
+            run.leaveEvent();
+            break;
+          }
+          case 'shop': {
+            // Buy the first affordable card, then leave.
+            const buyable = run.shop!.cards.findIndex((c) => !c.sold && run.gold >= c.price);
+            if (buyable >= 0) run.buyCard(buyable);
+            run.leaveShop();
             break;
           }
         }

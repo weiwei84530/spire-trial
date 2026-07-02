@@ -4,11 +4,14 @@
  */
 import { Battle } from './battle';
 import { CARDS, makeCard, makeStarterDeck } from './cards';
+import { EVENTS, type EventDef } from './events';
 import { generateMap, getNode, type GameMap, type MapNode, type NodeKind } from './map';
+import { getPotionDef, POTION_IDS } from './potions';
+import { RELICS, getRelicDef } from './relics';
 import { Rng } from './rng';
 import type { CardInstance, CardRarity } from './types';
 
-export type RunPhase = 'map' | 'battle' | 'reward' | 'rest' | 'victory' | 'defeat';
+export type RunPhase = 'map' | 'battle' | 'reward' | 'rest' | 'event' | 'shop' | 'victory' | 'defeat';
 
 /** Normal encounter pools by map depth (row <= maxRow picks that tier). */
 const NORMAL_TIERS: { maxRow: number; pool: string[][] }[] = [
@@ -41,11 +44,35 @@ const BOSS_POOL: string[][] = [['boss_maw']];
 
 const REST_HEAL_RATIO = 0.3;
 const REWARD_CHOICES = 3;
+const MAX_POTIONS = 3;
+const POTION_DROP_CHANCE = 0.3;
+const CARD_REMOVE_PRICE = 75;
 const RARITY_WEIGHTS: [CardRarity, number][] = [
   ['common', 60],
   ['uncommon', 30],
   ['rare', 10],
 ];
+const CARD_PRICES: Record<string, [number, number]> = {
+  common: [45, 55],
+  uncommon: [68, 82],
+  rare: [135, 150],
+};
+
+/** Everything gained from one battle victory; cards are pick-one. */
+export interface RewardBundle {
+  gold: number;
+  cards: string[];
+  relic: string | null;
+  potion: string | null;
+}
+
+export interface ShopStock {
+  cards: { defId: string; price: number; sold: boolean }[];
+  relics: { id: string; price: number; sold: boolean }[];
+  potions: { id: string; price: number; sold: boolean }[];
+  removePrice: number;
+  removeUsed: boolean;
+}
 
 export class Run {
   readonly rng: Rng;
@@ -53,13 +80,19 @@ export class Run {
   readonly deck: CardInstance[];
   hp: number;
   maxHp: number;
+  gold = 99;
+  readonly relics: string[] = ['burning_blood'];
+  readonly potions: string[] = [];
   phase: RunPhase = 'map';
   currentNodeId: string | null = null;
   /** Node ids already entered, for map rendering. */
   readonly visited: string[] = [];
   battle: Battle | null = null;
-  /** Card def ids offered after the current battle victory. */
-  cardRewards: string[] | null = null;
+  reward: RewardBundle | null = null;
+  currentEvent: EventDef | null = null;
+  /** Result text of the chosen event option, shown before returning to the map. */
+  eventResult: string | null = null;
+  shop: ShopStock | null = null;
 
   constructor(seed: number) {
     this.rng = new Rng(seed);
@@ -81,21 +114,36 @@ export class Run {
     if (!node) throw new Error(`Node ${id} is not reachable now`);
     this.currentNodeId = id;
     this.visited.push(id);
-    if (node.kind === 'rest') {
-      this.phase = 'rest';
-    } else {
-      this.startBattle(node);
+    switch (node.kind) {
+      case 'rest':
+        this.phase = 'rest';
+        break;
+      case 'event':
+        this.currentEvent = this.rng.pick(EVENTS);
+        this.eventResult = null;
+        this.phase = 'event';
+        break;
+      case 'shop':
+        this.shop = this.rollShopStock();
+        this.phase = 'shop';
+        break;
+      default:
+        this.startBattle(node);
     }
   }
 
+  // --- battle ---
+
   private startBattle(node: MapNode): void {
     const enemies = this.rng.pick(this.encounterPool(node.kind, node.row));
+    const startEffects = this.relics.flatMap((id) => getRelicDef(id).battleStart ?? []);
     this.battle = new Battle({
       seed: this.rng.int(0, 2 ** 31 - 1),
       deck: this.deck,
       playerHp: this.hp,
       playerMaxHp: this.maxHp,
       enemies,
+      startEffects,
     });
     this.phase = 'battle';
   }
@@ -120,14 +168,43 @@ export class Run {
     }
 
     this.hp = this.battle.state.player.hp;
+    const victoryHeal = this.relics.reduce((sum, id) => sum + (getRelicDef(id).victoryHeal ?? 0), 0);
+    this.hp = Math.min(this.maxHp, this.hp + victoryHeal);
+
     const node = getNode(this.map, this.currentNodeId!);
     this.battle = null;
     if (node.kind === 'boss') {
       this.phase = 'victory';
-    } else {
-      this.cardRewards = this.rollCardRewards();
-      this.phase = 'reward';
+      return;
     }
+
+    const isElite = node.kind === 'elite';
+    const gold = isElite ? this.rng.int(28, 40) : this.rng.int(12, 20);
+    this.gold += gold;
+    let relic: string | null = null;
+    if (isElite) {
+      relic = this.randomUnownedRelic();
+      if (relic) this.relics.push(relic);
+    }
+    let potion: string | null = null;
+    if (this.rng.next() < POTION_DROP_CHANCE && this.potions.length < MAX_POTIONS) {
+      potion = this.rng.pick(POTION_IDS);
+      this.potions.push(potion);
+    }
+    this.reward = { gold, cards: this.rollCardRewards(), relic, potion };
+    this.phase = 'reward';
+  }
+
+  /** Use a held potion during battle. Enemy-targeted potions need targetIndex. */
+  usePotion(potionIndex: number, targetIndex?: number): void {
+    if (this.phase !== 'battle' || !this.battle) throw new Error('Potions are battle-only');
+    const id = this.potions[potionIndex];
+    if (!id) throw new Error(`No potion at ${potionIndex}`);
+    const def = getPotionDef(id);
+    if (def.target === 'enemy' && targetIndex === undefined) throw new Error(`${id} needs a target`);
+    this.battle.usePotion(def.effects, def.target === 'enemy' ? targetIndex : undefined);
+    this.potions.splice(potionIndex, 1);
+    if (this.battle.state.phase !== 'playerTurn') this.resolveBattle();
   }
 
   private rollCardRewards(): string[] {
@@ -154,16 +231,23 @@ export class Run {
     return picks;
   }
 
+  private randomUnownedRelic(): string | null {
+    const pool = Object.keys(RELICS).filter((id) => !this.relics.includes(id));
+    return pool.length > 0 ? this.rng.pick(pool) : null;
+  }
+
   /** Take one offered card (or null to skip) and return to the map. */
   pickReward(defId: string | null): void {
-    if (this.phase !== 'reward' || !this.cardRewards) throw new Error('No reward pending');
+    if (this.phase !== 'reward' || !this.reward) throw new Error('No reward pending');
     if (defId !== null) {
-      if (!this.cardRewards.includes(defId)) throw new Error(`${defId} was not offered`);
+      if (!this.reward.cards.includes(defId)) throw new Error(`${defId} was not offered`);
       this.deck.push(makeCard(defId));
     }
-    this.cardRewards = null;
+    this.reward = null;
     this.phase = 'map';
   }
+
+  // --- rest ---
 
   restHeal(): void {
     if (this.phase !== 'rest') throw new Error('Not resting');
@@ -174,10 +258,8 @@ export class Run {
   /** Upgrade one deck card at the campfire instead of healing. */
   restUpgrade(deckIndex: number): void {
     if (this.phase !== 'rest') throw new Error('Not resting');
-    const card = this.deck[deckIndex];
-    if (!card) throw new Error(`No deck card at ${deckIndex}`);
-    if (card.upgraded || !CARDS[card.defId]?.upgrade) throw new Error(`${card.defId} cannot upgrade`);
-    card.upgraded = true;
+    if (!this.canUpgrade(deckIndex)) throw new Error(`Deck card ${deckIndex} cannot upgrade`);
+    this.deck[deckIndex]!.upgraded = true;
     this.phase = 'map';
   }
 
@@ -185,5 +267,116 @@ export class Run {
   canUpgrade(deckIndex: number): boolean {
     const card = this.deck[deckIndex];
     return !!card && !card.upgraded && !!CARDS[card.defId]?.upgrade;
+  }
+
+  // --- events ---
+
+  canChooseEventOption(choiceIndex: number): boolean {
+    const choice = this.currentEvent?.choices[choiceIndex];
+    if (!choice) return false;
+    return this.gold + (choice.gold ?? 0) >= 0;
+  }
+
+  chooseEventOption(choiceIndex: number): void {
+    if (this.phase !== 'event' || !this.currentEvent) throw new Error('No event active');
+    if (this.eventResult !== null) throw new Error('Event already resolved');
+    if (!this.canChooseEventOption(choiceIndex)) throw new Error('Cannot afford this choice');
+    const choice = this.currentEvent.choices[choiceIndex]!;
+
+    if (choice.gold) this.gold += choice.gold;
+    if (choice.hp) {
+      // Events never kill: HP loss floors at 1.
+      this.hp = Math.max(1, Math.min(this.maxHp, this.hp + choice.hp));
+    }
+    if (choice.gainRelic) {
+      const relic = this.randomUnownedRelic();
+      if (relic) this.relics.push(relic);
+    }
+    if (choice.gainCard) this.deck.push(makeCard(choice.gainCard));
+    if (choice.upgradeRandom) {
+      const upgradable = this.deck.map((_, i) => i).filter((i) => this.canUpgrade(i));
+      if (upgradable.length > 0) this.deck[this.rng.pick(upgradable)]!.upgraded = true;
+    }
+    this.eventResult = choice.result;
+  }
+
+  /** Dismiss the event result text and return to the map. */
+  leaveEvent(): void {
+    if (this.phase !== 'event') throw new Error('No event active');
+    this.currentEvent = null;
+    this.eventResult = null;
+    this.phase = 'map';
+  }
+
+  // --- shop ---
+
+  private rollShopStock(): ShopStock {
+    const cards: ShopStock['cards'] = [];
+    let guard = 30;
+    while (cards.length < 3 && guard-- > 0) {
+      const picks = this.rollCardRewards();
+      for (const defId of picks) {
+        if (cards.length >= 3 || cards.some((c) => c.defId === defId)) continue;
+        const [lo, hi] = CARD_PRICES[CARDS[defId]!.rarity] ?? [50, 60];
+        cards.push({ defId, price: this.rng.int(lo, hi), sold: false });
+      }
+    }
+    const relicId = this.randomUnownedRelic();
+    return {
+      cards,
+      relics: relicId ? [{ id: relicId, price: this.rng.int(140, 160), sold: false }] : [],
+      potions: [{ id: this.rng.pick(POTION_IDS), price: this.rng.int(48, 58), sold: false }],
+      removePrice: CARD_REMOVE_PRICE,
+      removeUsed: false,
+    };
+  }
+
+  private spend(price: number): void {
+    if (this.gold < price) throw new Error('Not enough gold');
+    this.gold -= price;
+  }
+
+  buyCard(index: number): void {
+    if (this.phase !== 'shop' || !this.shop) throw new Error('Not in shop');
+    const item = this.shop.cards[index];
+    if (!item || item.sold) throw new Error('Not for sale');
+    this.spend(item.price);
+    this.deck.push(makeCard(item.defId));
+    item.sold = true;
+  }
+
+  buyRelic(index: number): void {
+    if (this.phase !== 'shop' || !this.shop) throw new Error('Not in shop');
+    const item = this.shop.relics[index];
+    if (!item || item.sold) throw new Error('Not for sale');
+    this.spend(item.price);
+    this.relics.push(item.id);
+    item.sold = true;
+  }
+
+  buyPotion(index: number): void {
+    if (this.phase !== 'shop' || !this.shop) throw new Error('Not in shop');
+    const item = this.shop.potions[index];
+    if (!item || item.sold) throw new Error('Not for sale');
+    if (this.potions.length >= MAX_POTIONS) throw new Error('Potion slots full');
+    this.spend(item.price);
+    this.potions.push(item.id);
+    item.sold = true;
+  }
+
+  /** Pay to permanently remove one card from the deck (once per shop). */
+  removeCard(deckIndex: number): void {
+    if (this.phase !== 'shop' || !this.shop) throw new Error('Not in shop');
+    if (this.shop.removeUsed) throw new Error('Removal already used');
+    if (!this.deck[deckIndex]) throw new Error(`No deck card at ${deckIndex}`);
+    this.spend(this.shop.removePrice);
+    this.deck.splice(deckIndex, 1);
+    this.shop.removeUsed = true;
+  }
+
+  leaveShop(): void {
+    if (this.phase !== 'shop') throw new Error('Not in shop');
+    this.shop = null;
+    this.phase = 'map';
   }
 }

@@ -46,6 +46,8 @@ function effectText(effect: Effect): string {
       return `獲得 ${effect.amount} 點能量`;
     case 'loseHp':
       return `失去 ${effect.amount} 點生命`;
+    case 'heal':
+      return `回復 ${effect.amount} 點生命`;
     case 'addCard': {
       const count = effect.count ?? 1;
       return `將 ${count} 張 ${getCardDef(effect.card).name} 加入${PILE_NAMES[effect.destination]}`;
