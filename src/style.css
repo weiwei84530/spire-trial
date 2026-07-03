@@ -791,3 +791,35 @@ body[data-phase='shop'] {
   background: rgba(120, 90, 20, 0.35);
 }
 .title-settings { display: inline-flex; align-items: center; gap: 8px; }
+
+/* --- Boot loading screen --- */
+body[data-phase='loading'] {
+  background:
+    linear-gradient(rgba(16, 17, 22, 0.4), rgba(16, 17, 22, 0.9)),
+    var(--bg);
+}
+.loading-screen { justify-content: center; }
+.loading-title {
+  font-family: 'Cinzel', serif;
+  font-size: 42px;
+  letter-spacing: 6px;
+  color: #ffe9ad;
+  text-shadow: 0 0 24px rgba(245, 196, 81, 0.35), 0 2px 6px #000;
+  margin-bottom: 28px;
+}
+.loading-bar {
+  width: min(420px, 70vw);
+  height: 14px;
+  border: 1px solid var(--junk);
+  border-radius: 8px;
+  background: rgba(20, 22, 28, 0.8);
+  overflow: hidden;
+}
+.loading-fill {
+  height: 100%;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #7a5a1c, #f5c451, #ffe9ad);
+  box-shadow: 0 0 12px rgba(245, 196, 81, 0.55);
+  transition: width 0.15s ease-out;
+}
+.loading-label { color: var(--muted); font-size: 15px; margin-top: 12px; }

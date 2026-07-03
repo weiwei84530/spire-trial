@@ -128,6 +128,8 @@ const STR = {
   musicVolume: { en: 'Music volume', zh: '音樂音量' },
   sfxVolume: { en: 'Sound effects volume', zh: '音效音量' },
   muteAll: { en: 'Mute all', zh: '全部靜音' },
+  // Loading screen
+  loading: { en: 'Loading', zh: '載入中' },
 } satisfies Record<string, Record<Locale, string>>;
 
 export function t(key: keyof typeof STR, ...args: (string | number)[]): string {

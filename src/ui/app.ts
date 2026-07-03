@@ -28,6 +28,7 @@ import {
   t,
   type Locale,
 } from './i18n';
+import { preloadAll } from './preload';
 import { sound } from './sound';
 import { clearSave, loadRun, saveRun } from './storage';
 
@@ -132,6 +133,27 @@ export class App {
     (window as unknown as { __app: App }).__app = this;
     setLocale(locale()); // sync <html lang> with the persisted locale
     this.pendingResume = loadRun();
+    void this.boot();
+  }
+
+  /** Loading screen: preload every asset behind a progress bar, then title. */
+  private async boot(): Promise<void> {
+    document.body.dataset.phase = 'loading';
+    this.root.innerHTML = `
+      <div class="game">
+        <div class="dialog-screen center loading-screen">
+          <h1 class="loading-title">Spire Trial</h1>
+          <div class="loading-bar"><div class="loading-fill" style="width:0%"></div></div>
+          <p class="loading-label">${t('loading')} 0%</p>
+        </div>
+      </div>`;
+    const fill = this.root.querySelector<HTMLElement>('.loading-fill');
+    const label = this.root.querySelector<HTMLElement>('.loading-label');
+    await preloadAll((loaded, total) => {
+      const pct = total === 0 ? 100 : Math.round((loaded / total) * 100);
+      if (fill) fill.style.width = `${pct}%`;
+      if (label) label.textContent = `${t('loading')} ${pct}%`;
+    });
     this.renderTitle();
   }
 

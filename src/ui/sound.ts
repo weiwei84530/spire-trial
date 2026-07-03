@@ -56,6 +56,8 @@ class SoundManager {
   private sfxBus: GainNode | null = null;
   private musicBus: GainNode | null = null;
   private buffers = new Map<string, Promise<AudioBuffer | null>>();
+  /** Raw bytes handed over by the boot preloader, decoded on first use. */
+  private primed = new Map<string, ArrayBuffer>();
   /** Currently looping track: its source, per-track gain, and manifest key. */
   private current: { key: string; source: AudioBufferSourceNode; gain: GainNode } | null = null;
   /** Guards against out-of-order async track starts. */
@@ -158,16 +160,26 @@ class SoundManager {
     return this.ctx;
   }
 
+  /** Stores pre-fetched audio bytes so load() can skip the network entirely. */
+  prime(path: string, data: ArrayBuffer): void {
+    if (!this.buffers.has(path)) this.primed.set(path, data);
+  }
+
   /** Fetch + decode one file, cached forever; resolves null on any failure. */
   private load(path: string): Promise<AudioBuffer | null> {
     const cached = this.buffers.get(path);
     if (cached) return cached;
     const promise = (async () => {
       try {
-        // BASE_URL keeps audio working under a sub-path deploy (GitHub Pages).
-        const res = await fetch(`${import.meta.env.BASE_URL}audio/${path}.mp3`);
-        if (!res.ok) return null;
-        const data = await res.arrayBuffer();
+        let data = this.primed.get(path);
+        if (data) {
+          this.primed.delete(path);
+        } else {
+          // BASE_URL keeps audio working under a sub-path deploy (GitHub Pages).
+          const res = await fetch(`${import.meta.env.BASE_URL}audio/${path}.mp3`);
+          if (!res.ok) return null;
+          data = await res.arrayBuffer();
+        }
         return await this.ctx!.decodeAudioData(data);
       } catch {
         return null;
