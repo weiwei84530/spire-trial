@@ -49,7 +49,7 @@ const ICON_STYLE =
 interface Asset {
   /** id doubles as the output filename (without extension). */
   id: string;
-  dir: 'cards' | 'enemies' | 'relics' | 'potions' | 'bg';
+  dir: 'cards' | 'enemies' | 'relics' | 'potions' | 'bg' | 'icons' | 'events' | 'frames';
   prompt: string;
   size?: '1024x1024' | '1536x1024' | '1024x1536';
   transparent?: boolean;
@@ -71,6 +71,12 @@ function potion(id: string, object: string): void {
 }
 function bg(id: string, scene: string, size: Asset['size'] = '1536x1024'): void {
   ASSETS.push({ id, dir: 'bg', prompt: `${STYLE} ${scene}`, size });
+}
+function icon(id: string, object: string): void {
+  ASSETS.push({ id, dir: 'icons', prompt: `${ICON_STYLE} Object: ${object}`, transparent: true });
+}
+function eventArt(id: string, scene: string): void {
+  ASSETS.push({ id, dir: 'events', prompt: `${CARD_STYLE} Scene: ${scene}`, size: '1536x1024' });
 }
 
 // --- Card illustrations (58) ---
@@ -208,6 +214,107 @@ bg(
 // hero is transparent despite living in bg/: patch it after the fact.
 ASSETS[ASSETS.length - 1].transparent = true;
 ASSETS[ASSETS.length - 1].size = '1024x1536';
+
+bg(
+  'rest',
+  'A small campfire camp inside a ruined dungeon alcove, bedroll and travel pack beside warm dancing ' +
+    'flames, anvil and whetstone nearby, comforting golden light against cold indigo stone darkness. ' +
+    'Empty foreground kept dark and simple for game UI.'
+);
+bg(
+  'shop',
+  "A mysterious hooded merchant's underground stall, canvas awning strung between pillars, shelves of " +
+    'glowing potions and curios, lantern light, coins scattered on a wooden counter, inviting but eerie. ' +
+    'Lower half kept dark and simple for game UI.'
+);
+
+// --- Title logo (generated Traditional Chinese lettering) ---
+
+ASSETS.push({
+  id: 'logo',
+  dir: 'bg',
+  size: '1536x1024',
+  transparent: true,
+  prompt:
+    'Game logo of exactly four Traditional Chinese characters "尖塔試煉" written horizontally in one row, ' +
+    'in this exact order and stroke-accurate: 尖 then 塔 then 試 then 煉. ' +
+    'Ornate dark fantasy lettering: engraved gold metal with ember glow along the edges, ' +
+    'chipped and weathered, subtle sword-like vertical stroke flourishes. ' +
+    'Large characters filling most of the canvas, centered. ' +
+    'Isolated on a fully transparent background, no other text, no watermark, no border.',
+});
+
+// --- Map node emblems (6) ---
+
+icon('node_battle', 'two crossed straight swords emblem, steel with gold hilts');
+icon('node_elite', 'a horned demon skull emblem, ember glow in the eye sockets');
+icon('node_rest', 'a small crackling campfire emblem, warm golden flames over dark logs');
+icon('node_event', 'a mysterious glowing lantern emblem wrapped in swirling indigo mist');
+icon('node_shop', 'a plump leather coin pouch emblem with gold coins spilling out');
+icon('node_boss', 'a golden crown resting on a dark skull emblem, ominous red glow');
+
+// --- Top bar & battle UI icons ---
+
+icon('ui_hp', 'a glowing crimson heart shaped gem, gothic faceted');
+icon('ui_gold', 'a small neat stack of glowing gold coins');
+icon('ui_deck', 'a neat stack of ornate card backs, indigo with gold trim');
+icon('ui_floor', 'a slender dark spire tower emblem with tiny glowing windows');
+icon('ui_sound_on', 'a curved golden war horn emblem emitting three small sound arcs');
+icon('ui_sound_off', 'a curved dark war horn emblem, cracked and silent, faint grey');
+icon('ui_draw', 'a face-down ornate card with a golden arrow curving upward out of it');
+icon('ui_discard', 'two worn cards tossed loosely, one flipped, muted grey-blue');
+icon('ui_exhaust', 'a single card burning away at the corner into ember sparks');
+icon('intent_attack', 'a single downward-slashing sword with a red motion arc');
+icon('intent_defend', 'a round steel shield emblem with blue ward glow');
+icon('intent_buff', 'an upward flaring golden flame arrow');
+icon('intent_debuff', 'a downward dripping purple arrow, sickly glow');
+
+// --- Button & panel textures ---
+
+ASSETS.push({
+  id: 'btn_stone',
+  dir: 'frames',
+  size: '1536x1024',
+  transparent: true,
+  prompt:
+    `${STYLE} A wide rectangular game button plate: dark carved stone slab with a thin engraved gold trim ` +
+    'border and subtle ember glow at the edges, completely plain empty center for text, slightly rounded corners, ' +
+    'front-facing flat view filling the whole canvas. Isolated on a fully transparent background.',
+});
+ASSETS.push({
+  id: 'energy_orb',
+  dir: 'frames',
+  size: '1024x1024',
+  transparent: true,
+  prompt:
+    `${STYLE} A perfectly round glowing golden energy orb, swirling molten core, thin dark metal ring mount, ` +
+    'strong inner light, centered. Isolated on a fully transparent background.',
+});
+
+/** Card face background textures per card type (very dark so text stays readable). */
+function frame(id: string, tint: string): void {
+  ASSETS.push({
+    id,
+    dir: 'frames',
+    size: '1024x1536',
+    prompt:
+      `${STYLE} A plain vertical game card background texture: very dark aged leather and parchment, ` +
+      `extremely subtle ${tint} tint, faint thin ornate inner border near the edges, ` +
+      'no pictures, no symbols, no text, empty center, very low contrast so interface text stays readable.',
+  });
+}
+frame('frame_attack', 'deep crimson red');
+frame('frame_skill', 'cold steel blue');
+frame('frame_power', 'aged brass gold');
+frame('frame_neutral', 'neutral charcoal grey');
+
+// --- Event illustrations (one per event id) ---
+
+eventArt('golden_idol', 'a small radiant golden idol statue on a stone altar in a dark ruin, carved warning glyphs on the pedestal, dust motes in a single light shaft');
+eventArt('wandering_healer', 'a cloaked wandering healer with a worn medicine chest offering a glowing vial, kind eyes barely visible under the hood, misty dungeon corridor');
+eventArt('ancient_forge', 'an abandoned dwarven forge still burning with strange blue fire, anvil and scattered tools, sparks drifting in the dark');
+eventArt('mysterious_shrine', 'a grim stone sacrificial shrine with a carved blood groove and scattered gold coins, cold candles, oppressive shadows');
+eventArt('abandoned_cart', 'an overturned merchant cart on a dungeon road, crates and goods spilled across the stones, no owner in sight, single hanging lantern');
 
 // --- Engine ---
 

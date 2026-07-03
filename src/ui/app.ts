@@ -10,7 +10,8 @@ import { getRelicDef } from '../engine/relics';
 import { Run, type RunSave } from '../engine/run';
 import type { MapNode, NodeKind } from '../engine/map';
 import type { CardDef, CardInstance, EnemyState } from '../engine/types';
-import { cardText, CARD_TYPE_NAMES, intentText, STATUS_NAMES } from './describe';
+import type { IntentPreview } from '../engine/battle';
+import { cardText, CARD_TYPE_NAMES, STATUS_NAMES } from './describe';
 import { sound } from './sound';
 import { clearSave, loadRun, saveRun } from './storage';
 
@@ -21,15 +22,6 @@ interface BattleSnapshot {
   playerBlock: number;
 }
 
-const NODE_ICONS: Record<NodeKind, string> = {
-  battle: '⚔',
-  elite: '💀',
-  rest: '🔥',
-  event: '❓',
-  shop: '🛒',
-  boss: '👑',
-};
-
 const NODE_NAMES: Record<NodeKind, string> = {
   battle: '戰鬥',
   elite: '精英',
@@ -39,33 +31,64 @@ const NODE_NAMES: Record<NodeKind, string> = {
   boss: '頭目',
 };
 
-/** Generated PNG assets (scripts/generate-art.ts) served from public/art/. */
-function artUrl(dir: 'cards' | 'enemies' | 'relics' | 'potions' | 'bg', id: string): string {
+/** Generated assets (scripts/generate-art.ts) served from public/art/. */
+function artUrl(
+  dir: 'cards' | 'enemies' | 'relics' | 'potions' | 'bg' | 'icons' | 'events' | 'frames',
+  id: string
+): string {
   return `/art/${dir}/${id}.webp`;
 }
+
+/** Small inline icon img. */
+function iconHtml(id: string, cls = 'chip-icon', alt = ''): string {
+  return `<img class="${cls}" src="${artUrl('icons', id)}" alt="${alt}" draggable="false">`;
+}
+
+/** Ambient drifting ember particles (title screen). */
+function emberHtml(n: number): string {
+  let out = '';
+  for (let i = 0; i < n; i++) {
+    const left = Math.random() * 100;
+    const size = 2 + Math.random() * 4;
+    const dur = 6 + Math.random() * 9;
+    const delay = -Math.random() * 15;
+    out += `<span class="ember" style="left:${left}%;width:${size}px;height:${size}px;animation-duration:${dur}s;animation-delay:${delay}s"></span>`;
+  }
+  return out;
+}
+
+const NODE_ICON: Record<NodeKind, string> = {
+  battle: 'node_battle',
+  elite: 'node_elite',
+  rest: 'node_rest',
+  event: 'node_event',
+  shop: 'node_shop',
+  boss: 'node_boss',
+};
 
 /** Enemies rendered at a larger scale (bosses and elites). */
 const BIG_ENEMIES = new Set(['boss_maw', 'slime_king', 'the_shadow', 'gremlin_nob', 'giant_head']);
 
-const CARD_TYPE_ICONS: Record<string, string> = {
-  attack: '⚔',
-  skill: '🛡',
-  power: '✦',
-  status: '☠',
-  curse: '☠',
+/** Card face background texture per card type. */
+const CARD_FRAME: Record<string, string> = {
+  attack: 'frame_attack',
+  skill: 'frame_skill',
+  power: 'frame_power',
+  status: 'frame_neutral',
+  curse: 'frame_neutral',
 };
 
 /** Shared card face used by the hand, rewards, and the campfire deck list. */
-function cardFaceHtml(def: CardDef, extraClass = '', dataAttr = ''): string {
+function cardFaceHtml(def: CardDef, extraClass = '', dataAttr = '', styleExtra = ''): string {
   const cost = def.cost === 'x' ? 'X' : String(def.cost);
   const upgraded = def.name.endsWith('+') ? 'upgraded' : '';
-  const icon = CARD_TYPE_ICONS[def.type] ?? '❖';
   return `
-    <div class="card type-${def.type} rarity-${def.rarity} ${upgraded} ${extraClass}" ${dataAttr}>
+    <div class="card type-${def.type} rarity-${def.rarity} ${upgraded} ${extraClass}" ${dataAttr}
+         style="background-image:url('${artUrl('frames', CARD_FRAME[def.type] ?? 'frame_neutral')}');${styleExtra}">
       <div class="cost">${cost}</div>
       <div class="card-head">
         <div class="card-name">${def.name}</div>
-        <div class="card-type">${icon} ${CARD_TYPE_NAMES[def.type]}</div>
+        <div class="card-type">${CARD_TYPE_NAMES[def.type]}</div>
       </div>
       <div class="card-art"><img src="${artUrl('cards', def.id)}" alt="" draggable="false"></div>
       <div class="card-text">${cardText(def)}</div>
@@ -81,8 +104,12 @@ export class App {
   private removeMode = false;
   /** Battle: which pile's contents are shown in the overlay. */
   private pileView: 'drawPile' | 'discardPile' | 'exhaustPile' | null = null;
+  /** Battle log panel visibility (debug-ish; collapsed by default). */
+  private logOpen = false;
   /** A save found at startup, awaiting the player's resume/restart decision. */
   private pendingResume: RunSave | null = null;
+  /** Previous run phase; a change triggers the screen-enter transition. */
+  private lastPhase: string | null = null;
   private readonly root: HTMLElement;
 
   constructor(root: HTMLElement) {
@@ -98,7 +125,7 @@ export class App {
     const save = this.pendingResume;
     const saveInfo = save
       ? `<p class="save-info">發現進行中的冒險：第 ${save.act} 幕・樓層 ${save.visited.length}／${save.map.rows.length}，
-         ❤ ${save.hp}/${save.maxHp}，💰 ${save.gold}，牌組 ${save.deck.length} 張</p>`
+         生命 ${save.hp}/${save.maxHp}，金幣 ${save.gold}，牌組 ${save.deck.length} 張</p>`
       : '';
     const buttons = save
       ? `<button class="primary-btn" data-resume>繼續冒險</button>
@@ -107,8 +134,9 @@ export class App {
     document.body.dataset.phase = 'title';
     this.root.innerHTML = `
       <div class="game">
-        <div class="dialog-screen center title-screen">
-          <h1 class="game-title">尖塔試煉</h1>
+        <div class="dialog-screen center title-screen screen-enter">
+          <div class="embers">${emberHtml(16)}</div>
+          <img class="logo-img" src="${artUrl('bg', 'logo')}" alt="尖塔試煉" draggable="false">
           <p class="game-subtitle">卡牌構築・三幕地城・一次生命</p>
           ${saveInfo}
           ${buttons}
@@ -184,6 +212,7 @@ export class App {
         el.classList.add('hit');
         if (e.hp <= 0) el.classList.add('just-died');
         this.floatText(el, `-${lost}`, 'dmg');
+        this.burst(el, 'dmg', Math.min(14, 5 + Math.floor(lost / 3)));
       }
     });
     if (anyHit) sound.play('hit');
@@ -201,11 +230,13 @@ export class App {
       if (lostHp >= 15) this.root.querySelector('.battle')?.classList.add('shake');
     } else if (lostHp < 0) {
       this.floatText(panel, `+${-lostHp}`, 'heal');
+      this.burst(panel, 'heal', 8);
       sound.play('heal');
     }
     const gainedBlock = player.block - before.playerBlock;
     if (gainedBlock > 0) {
       this.floatText(panel, `+${gainedBlock}`, 'block');
+      this.burst(panel, 'block', 7);
       sound.play('block');
     }
   }
@@ -215,6 +246,21 @@ export class App {
     span.className = `float-text ${kind}`;
     span.textContent = text;
     host.appendChild(span);
+  }
+
+  /** Short-lived burst of particle sparks centered on the host element. */
+  private burst(host: Element, kind: 'dmg' | 'block' | 'heal', count: number): void {
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('span');
+      p.className = `burst ${kind}`;
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 28 + Math.random() * 55;
+      p.style.setProperty('--dx', `${(Math.cos(angle) * dist).toFixed(0)}px`);
+      p.style.setProperty('--dy', `${(Math.sin(angle) * dist - 22).toFixed(0)}px`);
+      p.style.animationDelay = `${(Math.random() * 90).toFixed(0)}ms`;
+      p.addEventListener('animationend', () => p.remove());
+      host.appendChild(p);
+    }
   }
 
   /** UI-level playability: also greys out X-cost cards that would fizzle at 0 energy. */
@@ -343,6 +389,11 @@ export class App {
     // Per-phase full-bleed background image, applied at the body level.
     document.body.dataset.phase = this.run.phase;
     this.root.innerHTML = `<div class="game">${this.topBarHtml()}${screen}</div>`;
+    // Slide-and-fade the screen in whenever the run phase changes.
+    if (this.run.phase !== this.lastPhase) {
+      this.root.querySelector('.game > :nth-child(2)')?.classList.add('screen-enter');
+      this.lastPhase = this.run.phase;
+    }
     this.bind();
 
     // Autosave between nodes; a finished run clears the slot.
@@ -368,21 +419,24 @@ export class App {
       .join('');
     return `
       <div class="top-bar">
-        <span>❤ ${this.run.hp}/${this.run.maxHp}</span>
-        <span>💰 ${this.run.gold}</span>
-        <span>🂠 牌組 ${this.run.deck.length}</span>
+        <span class="stat">${iconHtml('ui_hp', 'chip-icon', '生命')} ${this.run.hp}/${this.run.maxHp}</span>
+        <span class="stat">${iconHtml('ui_gold', 'chip-icon', '金幣')} ${this.run.gold}</span>
+        <span class="stat" title="牌組">${iconHtml('ui_deck', 'chip-icon', '牌組')} ${this.run.deck.length}</span>
         <span class="chip-group">${relics}</span>
         <span class="chip-group">${potions}</span>
         <span class="top-bar-right">
-          <span class="mute-chip" data-mute title="音效開關">${sound.muted ? '🔇' : '🔊'}</span>
-          第 ${this.run.act} 幕・樓層 ${floor}/${this.run.map.rows.length}
+          <span class="mute-chip" data-mute title="音效開關">${iconHtml(sound.muted ? 'ui_sound_off' : 'ui_sound_on')}</span>
+          <span class="stat">${iconHtml('ui_floor', 'chip-icon', '樓層')} 第 ${this.run.act} 幕・${floor}/${this.run.map.rows.length}</span>
         </span>
       </div>`;
   }
 
   private actTransitionScreen(): string {
     const reward = this.run.reward!;
-    const extras: string[] = [`💰 +${reward.gold} 金幣`, '❤ 進入下一幕時完全回復生命'];
+    const extras: string[] = [
+      `${iconHtml('ui_gold', 'inline-icon')} +${reward.gold} 金幣`,
+      `${iconHtml('ui_hp', 'inline-icon')} 進入下一幕時完全回復生命`,
+    ];
     if (reward.relic) {
       const def = getRelicDef(reward.relic);
       extras.push(`<img class="inline-icon" src="${artUrl('relics', reward.relic)}" alt=""> ${def.name} — ${def.desc}`);
@@ -392,7 +446,7 @@ export class App {
       .join('');
     return `
       <div class="dialog-screen">
-        <h2>🎉 第 ${this.run.act} 幕完成！</h2>
+        <h2>第 ${this.run.act} 幕完成！</h2>
         <div class="reward-extras">${extras.map((e) => `<div>${e}</div>`).join('')}</div>
         <h3>選擇一張卡牌，然後前往第 ${this.run.act + 1} 幕：</h3>
         <div class="card-row">${cards}</div>
@@ -429,10 +483,12 @@ export class App {
           visited.has(node.id) ? 'visited' : '',
           node.id === this.run.currentNodeId ? 'current' : '',
         ].join(' ');
+        const r = node.kind === 'boss' ? 32 : 24;
+        const s = r * 1.55;
         nodes += `
           <g class="${cls}" data-node="${node.id}" transform="translate(${x(node.col)},${y(node.row)})">
-            <circle r="${node.kind === 'boss' ? 30 : 22}"/>
-            <text y="7" text-anchor="middle">${NODE_ICONS[node.kind]}</text>
+            <circle r="${r}"/>
+            <image href="${artUrl('icons', NODE_ICON[node.kind])}" x="${-s / 2}" y="${-s / 2}" width="${s}" height="${s}"/>
             <title>${NODE_NAMES[node.kind]}</title>
           </g>`;
       }
@@ -450,6 +506,9 @@ export class App {
   private battleScreen(): string {
     const battle = this.run.battle!;
     const { player, enemies, turn } = battle.state;
+    const log = this.logOpen
+      ? `<div class="log-panel">${battle.state.log.slice(-60).map((l) => `<div>${l}</div>`).join('')}</div>`
+      : '';
     return `
       <div class="battle">
         <div class="turn-label">回合 ${turn}</div>
@@ -465,16 +524,19 @@ export class App {
             ${this.hpBarHtml(player.hp, player.maxHp, player.block)}
             <div class="statuses">${this.statusesHtml(player.statuses)}</div>
           </div>
-          <div class="energy-orb" title="能量">${player.energy}/${player.maxEnergy}</div>
+          <div class="energy-orb" title="能量" style="background-image:url('${artUrl('frames', 'energy_orb')}')">
+            <span>${player.energy}/${player.maxEnergy}</span>
+          </div>
           <div class="piles">
-            <span class="pile-link" data-pile="drawPile">抽牌 ${player.drawPile.length}</span>
-            <span class="pile-link" data-pile="discardPile">棄牌 ${player.discardPile.length}</span>
-            <span class="pile-link" data-pile="exhaustPile">消耗 ${player.exhaustPile.length}</span>
+            <span class="pile-link" data-pile="drawPile">${iconHtml('ui_draw', 'pile-icon', '抽牌堆')} ${player.drawPile.length}</span>
+            <span class="pile-link" data-pile="discardPile">${iconHtml('ui_discard', 'pile-icon', '棄牌堆')} ${player.discardPile.length}</span>
+            <span class="pile-link" data-pile="exhaustPile">${iconHtml('ui_exhaust', 'pile-icon', '消耗堆')} ${player.exhaustPile.length}</span>
           </div>
           ${this.endTurnButtonHtml()}
         </div>
-        <div class="hand">${player.hand.map((c, i) => this.handCardHtml(c, i)).join('')}</div>
-        <div class="log-panel">${battle.state.log.slice(-40).map((l) => `<div>${l}</div>`).join('')}</div>
+        <div class="hand">${player.hand.map((c, i) => this.handCardHtml(c, i, player.hand.length)).join('')}</div>
+        <button class="log-toggle ${this.logOpen ? 'open' : ''}" data-toggle-log>戰鬥紀錄</button>
+        ${log}
         ${this.pileView ? this.pileOverlayHtml() : ''}
       </div>`;
   }
@@ -486,7 +548,7 @@ export class App {
     const wouldWaste =
       player.energy > 0 && player.hand.some((_, i) => this.isHandCardPlayable(i));
     if (!wouldWaste) return '<button class="end-turn">結束回合</button>';
-    return `<button class="end-turn warn" title="還有可打出的卡牌">結束回合（剩 ⚡${player.energy}）</button>`;
+    return `<button class="end-turn warn" title="還有可打出的卡牌">結束回合（剩 ${player.energy} 能量）</button>`;
   }
 
   private pileOverlayHtml(): string {
@@ -512,7 +574,7 @@ export class App {
   private enemyHtml(enemy: EnemyState, index: number): string {
     const dead = enemy.hp <= 0;
     const battle = this.run.battle!;
-    const intent = dead ? '' : `<div class="intent">${intentText(battle.intentOf(enemy))}</div>`;
+    const intent = dead ? '' : `<div class="intent">${this.intentHtml(battle.intentOf(enemy))}</div>`;
     const targetable = (this.selected !== null || this.potionSelected !== null) && !dead;
     const big = BIG_ENEMIES.has(enemy.defId) ? 'big' : '';
     return `
@@ -525,16 +587,39 @@ export class App {
       </div>`;
   }
 
-  private handCardHtml(card: CardInstance, index: number): string {
+  /** Icon + short text version of the enemy intent line. */
+  private intentHtml(intent: IntentPreview): string {
+    const icon = iconHtml(`intent_${intent.kind === 'defend' ? 'defend' : intent.kind}`, 'intent-icon');
+    switch (intent.kind) {
+      case 'attack': {
+        const hits = intent.hits && intent.hits > 1 ? `×${intent.hits}` : '';
+        return `${icon} ${intent.damage}${hits}`;
+      }
+      case 'defend':
+        return `${icon} 防禦`;
+      case 'buff':
+        return `${icon} 強化`;
+      case 'debuff':
+        return `${icon} 弱化`;
+    }
+  }
+
+  /** Fanned hand layout: rotation/lift computed per card, applied via CSS vars. */
+  private handCardHtml(card: CardInstance, index: number, total: number): string {
     const def = resolveCard(card);
     const playable = this.isHandCardPlayable(index);
     const cls = `${playable ? 'playable' : 'not-playable'} ${this.selected === index ? 'selected' : ''}`;
-    return cardFaceHtml(def, cls, `data-card="${index}"`);
+    const mid = (total - 1) / 2;
+    const off = index - mid;
+    const rot = off * Math.min(4, 34 / Math.max(total, 1));
+    const lift = Math.abs(off) * Math.abs(off) * 5;
+    const style = `--rot:${rot.toFixed(2)}deg;--lift:${lift.toFixed(1)}px;--deal:${index * 55}ms;`;
+    return cardFaceHtml(def, `in-hand ${cls}`, `data-card="${index}"`, style);
   }
 
   private hpBarHtml(hp: number, maxHp: number, block: number): string {
     const pct = Math.max(0, (hp / maxHp) * 100);
-    const blockChip = block > 0 ? `<span class="block-chip">🛡${block}</span>` : '';
+    const blockChip = block > 0 ? `<span class="block-chip">${block}</span>` : '';
     return `
       <div class="hp-bar">
         <div class="hp-fill" style="width:${pct}%"></div>
@@ -556,7 +641,7 @@ export class App {
     const cards = reward.cards
       .map((id) => cardFaceHtml(getCardDef(id), 'pickable', `data-reward="${id}"`))
       .join('');
-    const extras: string[] = [`💰 +${reward.gold} 金幣`];
+    const extras: string[] = [`${iconHtml('ui_gold', 'inline-icon')} +${reward.gold} 金幣`];
     if (reward.relic) {
       const def = getRelicDef(reward.relic);
       extras.push(`<img class="inline-icon" src="${artUrl('relics', reward.relic)}" alt=""> ${def.name} — ${def.desc}`);
@@ -577,10 +662,12 @@ export class App {
 
   private eventScreen(): string {
     const event = this.run.currentEvent!;
+    const art = `<img class="event-art" src="${artUrl('events', event.id)}" alt="" draggable="false">`;
     if (this.run.eventResult !== null) {
       return `
         <div class="dialog-screen center">
-          <h2>❓ ${event.title}</h2>
+          <h2>${event.title}</h2>
+          ${art}
           <p class="event-text">${this.run.eventResult}</p>
           <button class="primary-btn" data-leave-event>繼續</button>
         </div>`;
@@ -593,7 +680,8 @@ export class App {
       .join('');
     return `
       <div class="dialog-screen center">
-        <h2>❓ ${event.title}</h2>
+        <h2>${event.title}</h2>
+        ${art}
         <p class="event-text">${event.text}</p>
         <div class="choice-list">${choices}</div>
       </div>`;
@@ -608,7 +696,7 @@ export class App {
         return `
           <div class="shop-item">
             ${cardFaceHtml(getCardDef(item.defId), afford ? 'pickable' : 'dimmed', afford ? `data-buy-card="${i}"` : '')}
-            <div class="price-tag">💰 ${item.price}</div>
+            <div class="price-tag">${iconHtml('ui_gold', 'inline-icon')} ${item.price}</div>
           </div>`;
       })
       .join('');
@@ -619,7 +707,7 @@ export class App {
         const afford = this.run.gold >= item.price;
         return `
           <button class="shop-row ${afford ? '' : 'dimmed'}" data-buy-relic="${i}" ${afford ? '' : 'disabled'}>
-            <img class="inline-icon" src="${artUrl('relics', item.id)}" alt=""> ${def.name} — ${def.desc} <span class="price-tag">💰 ${item.price}</span>
+            <img class="inline-icon" src="${artUrl('relics', item.id)}" alt=""> ${def.name} — ${def.desc} <span class="price-tag">${iconHtml('ui_gold', 'inline-icon')} ${item.price}</span>
           </button>`;
       })
       .join('');
@@ -630,7 +718,7 @@ export class App {
         const afford = this.run.gold >= item.price && this.run.potions.length < 3;
         return `
           <button class="shop-row ${afford ? '' : 'dimmed'}" data-buy-potion="${i}" ${afford ? '' : 'disabled'}>
-            <img class="inline-icon" src="${artUrl('potions', item.id)}" alt=""> ${def.name} — ${def.desc} <span class="price-tag">💰 ${item.price}</span>
+            <img class="inline-icon" src="${artUrl('potions', item.id)}" alt=""> ${def.name} — ${def.desc} <span class="price-tag">${iconHtml('ui_gold', 'inline-icon')} ${item.price}</span>
           </button>`;
       })
       .join('');
@@ -642,11 +730,11 @@ export class App {
            .join('')}</div>
          <button class="ghost-btn" data-cancel-remove>取消</button>`
       : `<button class="shop-row ${removeAfford ? '' : 'dimmed'}" data-remove-mode ${removeAfford ? '' : 'disabled'}>
-           ✂ 刪除一張卡牌 <span class="price-tag">💰 ${shop.removePrice}</span>${shop.removeUsed ? '（已使用）' : ''}
+           刪除一張卡牌 <span class="price-tag">${iconHtml('ui_gold', 'inline-icon')} ${shop.removePrice}</span>${shop.removeUsed ? '（已使用）' : ''}
          </button>`;
     return `
       <div class="dialog-screen">
-        <h2>🛒 商店</h2>
+        <h2>${iconHtml('node_shop', 'heading-icon')} 商店</h2>
         <div class="card-row">${cardItems}</div>
         <div class="shop-rows">${relicItems}${potionItems}${removeSection}</div>
         <button class="ghost-btn" data-leave-shop>離開商店</button>
@@ -664,7 +752,7 @@ export class App {
       .join('');
     return `
       <div class="dialog-screen">
-        <h2>🔥 營火</h2>
+        <h2>${iconHtml('node_rest', 'heading-icon')} 營火</h2>
         <p>休息回復 ${heal} HP，或鍛造升級一張卡牌。</p>
         <button class="primary-btn" data-rest-heal>休息（+${heal} HP）</button>
         <h3>或點選要升級的卡牌：</h3>
@@ -686,7 +774,7 @@ export class App {
     ];
     return `
       <div class="dialog-screen center">
-        <h2>${phase === 'victory' ? '🏆 征服尖塔！' : '💀 你死了…'}</h2>
+        <h2>${phase === 'victory' ? '征服尖塔！' : '你死了…'}</h2>
         <p>${
           phase === 'victory'
             ? '三幕試煉全數通過，塔頂的黑暗已被驅散。'
@@ -777,6 +865,10 @@ export class App {
     });
     on('[data-close-pile]', () => {
       this.pileView = null;
+      this.render();
+    });
+    on('[data-toggle-log]', () => {
+      this.logOpen = !this.logOpen;
       this.render();
     });
     on('[data-new-run]', () => this.newRun());

@@ -3,7 +3,6 @@
  * (treated as proper nouns); all rule text is generated here so data files
  * never store display strings.
  */
-import type { IntentPreview } from '../engine/battle';
 import { getCardDef } from '../engine/cards';
 import type { CardDef, Effect, StatusId } from '../engine/types';
 
@@ -81,18 +80,3 @@ export const CARD_TYPE_NAMES: Record<CardDef['type'], string> = {
   curse: '詛咒',
 };
 
-/** Short intent line shown above an enemy, e.g. "⚔ 9×2". */
-export function intentText(intent: IntentPreview): string {
-  switch (intent.kind) {
-    case 'attack': {
-      const hits = intent.hits && intent.hits > 1 ? `×${intent.hits}` : '';
-      return `⚔ ${intent.damage}${hits}`;
-    }
-    case 'defend':
-      return '🛡 防禦';
-    case 'buff':
-      return '↑ 強化';
-    case 'debuff':
-      return '↓ 弱化';
-  }
-}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cardText, intentText } from '../src/ui/describe';
+import { cardText } from '../src/ui/describe';
 import { getCardDef, resolveCard, makeCard } from '../src/engine/cards';
 
 describe('cardText', () => {
@@ -27,17 +27,5 @@ describe('cardText', () => {
 
   it('uses upgraded values for upgraded instances', () => {
     expect(cardText(resolveCard(makeCard('strike', true)))).toBe('造成 9 點傷害。');
-  });
-});
-
-describe('intentText', () => {
-  it('formats attack intents with hits', () => {
-    expect(intentText({ kind: 'attack', damage: 9, hits: 1 })).toBe('⚔ 9');
-    expect(intentText({ kind: 'attack', damage: 5, hits: 2 })).toBe('⚔ 5×2');
-  });
-
-  it('formats non-attack intents', () => {
-    expect(intentText({ kind: 'buff' })).toBe('↑ 強化');
-    expect(intentText({ kind: 'debuff' })).toBe('↓ 弱化');
   });
 });

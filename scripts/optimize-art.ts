@@ -20,6 +20,9 @@ const SIZES: Record<string, { w: number; h: number; quality: number }> = {
   relics: { w: 160, h: 160, quality: 80 },
   potions: { w: 160, h: 160, quality: 80 },
   bg: { w: 1600, h: 1600, quality: 78 },
+  icons: { w: 160, h: 160, quality: 82 },
+  events: { w: 960, h: 960, quality: 78 },
+  frames: { w: 768, h: 768, quality: 80 },
 };
 
 async function main(): Promise<void> {
