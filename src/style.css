@@ -29,6 +29,30 @@ body {
   user-select: none;
 }
 
+/* Full-bleed generated backdrops per run phase (set via body[data-phase]). */
+body[data-phase='title'] {
+  background:
+    linear-gradient(rgba(16, 17, 22, 0.25), rgba(16, 17, 22, 0.5) 60%, rgba(16, 17, 22, 0.85)),
+    url('/art/bg/title.webp') center / cover fixed no-repeat var(--bg);
+}
+body[data-phase='battle'],
+body[data-phase='reward'] {
+  background:
+    linear-gradient(rgba(16, 17, 22, 0.5), rgba(16, 17, 22, 0.82) 75%),
+    url('/art/bg/battle.webp') center top / cover fixed no-repeat var(--bg);
+}
+body[data-phase='map'],
+body[data-phase='actTransition'],
+body[data-phase='rest'],
+body[data-phase='event'],
+body[data-phase='shop'],
+body[data-phase='victory'],
+body[data-phase='defeat'] {
+  background:
+    linear-gradient(rgba(16, 17, 22, 0.72), rgba(16, 17, 22, 0.88)),
+    url('/art/bg/map.webp') center / cover fixed no-repeat var(--bg);
+}
+
 .game {
   max-width: 1100px;
   margin: 0 auto;
@@ -122,9 +146,13 @@ body {
 .potion-chip {
   background: var(--panel-2);
   border-radius: 5px;
-  padding: 1px 6px;
+  padding: 2px 4px;
   cursor: help;
+  display: inline-flex;
+  align-items: center;
 }
+.chip-icon { width: 22px; height: 22px; object-fit: contain; display: block; }
+.inline-icon { width: 22px; height: 22px; object-fit: contain; vertical-align: -6px; }
 .potion-chip.usable { cursor: pointer; }
 .potion-chip.usable:hover { background: #3a3f4d; }
 .potion-chip.selected { outline: 2px solid var(--energy); }
@@ -160,8 +188,8 @@ body {
 /* --- Shop --- */
 .shop-item { position: relative; }
 .shop-item.sold {
-  width: 128px;
-  height: 172px;
+  width: 132px;
+  height: 204px;
   border: 2px dashed var(--junk);
   border-radius: 10px;
   color: var(--muted);
@@ -215,15 +243,49 @@ body {
 .stats-table td:first-child { color: var(--muted); text-align: left; }
 .stats-table td:last-child { text-align: right; }
 
-/* --- Enemies --- */
+/* --- Arena: hero on the left, enemies on the right --- */
+.arena {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+  padding: 12px 0 24px;
+  min-height: 240px;
+}
+
+.hero-side {
+  width: 170px;
+  flex-shrink: 0;
+  text-align: center;
+  position: relative;
+  padding-bottom: 8px;
+}
+.hero-side img {
+  max-height: 210px;
+  max-width: 100%;
+  object-fit: contain;
+  animation: idle-bob 3.6s ease-in-out infinite;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6));
+}
+.hero-side::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 70%;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.45), transparent 70%);
+}
+.hero-side.hit img { animation: hit-shake 0.3s; }
+
 .enemies-row {
   flex: 1;
   display: flex;
   justify-content: center;
   align-items: flex-end;
   gap: 40px;
-  padding: 12px 0 24px;
-  min-height: 220px;
 }
 
 .enemy {
@@ -256,13 +318,16 @@ body {
   border-radius: 50%;
   background: radial-gradient(ellipse, rgba(0, 0, 0, 0.45), transparent 70%);
 }
-.enemy-art svg {
-  width: 110px;
-  height: 82px;
+.enemy-art img {
+  width: 100%;
+  max-height: 140px;
+  object-fit: contain;
+  object-position: bottom;
   animation: idle-bob 3.2s ease-in-out infinite;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6));
 }
-.enemy.big .enemy-art svg { width: 150px; height: 112px; }
-.enemy.dead .enemy-art svg { animation: none; }
+.enemy.big .enemy-art img { max-height: 200px; }
+.enemy.dead .enemy-art img { animation: none; }
 
 @keyframes idle-bob {
   0%, 100% { transform: translateY(0); }
@@ -270,14 +335,14 @@ body {
 }
 
 /* --- Battle FX (classes applied after each action by diffing state) --- */
-.enemy.hit .enemy-art svg { animation: hit-shake 0.3s; }
+.enemy.hit .enemy-art img { animation: hit-shake 0.3s; }
 @keyframes hit-shake {
   0%, 100% { transform: translateX(0); }
   20% { transform: translateX(-6px) rotate(-2deg); }
   60% { transform: translateX(6px) rotate(2deg); }
 }
 
-.enemy.just-died .enemy-art svg { animation: collapse 0.5s ease-in forwards; }
+.enemy.just-died .enemy-art img { animation: collapse 0.5s ease-in forwards; }
 @keyframes collapse {
   to { transform: scaleY(0.15) translateY(28px); opacity: 0.3; }
 }
@@ -319,12 +384,9 @@ body {
 .mute-chip:hover { filter: brightness(1.3); }
 
 /* --- Title screen --- */
-.title-emblem {
-  font-size: 72px;
-  filter: drop-shadow(0 0 24px rgba(232, 185, 59, 0.35));
-  margin-bottom: 4px;
-}
+.title-screen { justify-content: flex-end; padding-bottom: 12vh; }
 .game-title {
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.9));
   font-size: 52px;
   font-weight: 800;
   letter-spacing: 14px;
@@ -394,7 +456,8 @@ body {
   display: flex;
   align-items: center;
   gap: 20px;
-  background: var(--panel);
+  /* Slightly translucent so the backdrop art reads through. */
+  background: rgba(34, 37, 45, 0.9);
   border-radius: 10px;
   padding: 10px 16px;
 }
@@ -443,12 +506,12 @@ body {
   justify-content: center;
   gap: 10px;
   padding: 14px 0 10px;
-  min-height: 190px;
+  min-height: 222px;
 }
 
 .card {
-  width: 128px;
-  height: 172px;
+  width: 132px;
+  height: 204px;
   background: linear-gradient(170deg, var(--panel-2) 0%, #23262e 70%, #1e2027 100%);
   border: 2px solid var(--junk);
   border-radius: 10px;
@@ -497,16 +560,22 @@ body {
 }
 .card-name { font-weight: 700; font-size: 13px; margin: 1px 0 0 6px; }
 .card-type { font-size: 10px; color: var(--muted); margin-left: 6px; }
-.card-text { font-size: 12px; margin-top: 9px; line-height: 1.45; color: var(--text); position: relative; z-index: 1; }
+.card-text { font-size: 12px; margin-top: 7px; line-height: 1.45; color: var(--text); position: relative; z-index: 1; }
 
-.card-watermark {
-  position: absolute;
-  bottom: -14px;
-  right: -6px;
-  font-size: 74px;
-  opacity: 0.07;
-  pointer-events: none;
-  line-height: 1;
+/* Full-bleed art window between the head and the rules text. */
+.card-art {
+  margin: 6px -9px 0;
+  height: 66px;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 -8px 12px -8px rgba(0, 0, 0, 0.8);
+}
+.card-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
 }
 
 /* --- Log --- */

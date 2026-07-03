@@ -11,6 +11,7 @@
     "sim": "tsx scripts/sim.ts"
   },
   "devDependencies": {
+    "sharp": "^0.35.3",
     "tsx": "^4.22.4",
     "typescript": "^5.8.0",
     "vite": "^6.3.0",

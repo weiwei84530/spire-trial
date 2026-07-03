@@ -39,114 +39,13 @@ const NODE_NAMES: Record<NodeKind, string> = {
   boss: '頭目',
 };
 
-/** Flat-color SVG art per enemy family. Placeholder-quality but consistent. */
-function enemyArt(defId: string): string {
-  if (defId.includes('slime')) {
-    return `<svg viewBox="0 0 80 60"><ellipse cx="40" cy="42" rx="32" ry="18" fill="var(--art)"/>
-      <ellipse cx="40" cy="30" rx="22" ry="16" fill="var(--art)" opacity="0.85"/>
-      <circle cx="33" cy="28" r="3" fill="#111"/><circle cx="48" cy="28" r="3" fill="#111"/></svg>`;
-  }
-  if (defId.includes('worm') || defId === 'boss_maw') {
-    return `<svg viewBox="0 0 80 60"><circle cx="20" cy="45" r="12" fill="var(--art)" opacity="0.7"/>
-      <circle cx="38" cy="38" r="14" fill="var(--art)" opacity="0.85"/>
-      <circle cx="56" cy="28" r="16" fill="var(--art)"/>
-      <circle cx="60" cy="24" r="3" fill="#111"/><path d="M50 36 q8 6 16 2" stroke="#111" stroke-width="2" fill="none"/></svg>`;
-  }
-  if (defId.includes('louse')) {
-    return `<svg viewBox="0 0 80 60"><ellipse cx="40" cy="35" rx="24" ry="18" fill="var(--art)"/>
-      <path d="M20 30 l-10 -8 M25 22 l-8 -12 M60 30 l10 -8 M55 22 l8 -12" stroke="var(--art)" stroke-width="3"/>
-      <circle cx="34" cy="32" r="3" fill="#111"/><circle cx="46" cy="32" r="3" fill="#111"/></svg>`;
-  }
-  if (defId === 'byrd') {
-    return `<svg viewBox="0 0 80 60"><ellipse cx="40" cy="38" rx="16" ry="13" fill="var(--art)"/>
-      <path d="M26 34 q-14 -12 -4 -20 q2 10 8 14 M54 34 q14 -12 4 -20 q-2 10 -8 14" fill="var(--art)"/>
-      <path d="M40 30 l6 4 l-6 3 Z" fill="#e8b93b"/><circle cx="35" cy="32" r="2.5" fill="#111"/></svg>`;
-  }
-  if (defId === 'writhing_mass' || defId === 'darkling') {
-    return `<svg viewBox="0 0 80 60"><ellipse cx="40" cy="38" rx="26" ry="20" fill="var(--art)"/>
-      <ellipse cx="28" cy="30" rx="8" ry="6" fill="var(--art)" opacity="0.7"/>
-      <ellipse cx="54" cy="26" rx="7" ry="5" fill="var(--art)" opacity="0.7"/>
-      <circle cx="36" cy="36" r="3" fill="#111"/><circle cx="48" cy="34" r="2" fill="#111"/><circle cx="42" cy="44" r="2" fill="#111"/></svg>`;
-  }
-  if (defId === 'snake_plant' || defId === 'spire_growth') {
-    return `<svg viewBox="0 0 80 60"><path d="M38 58 q-4 -26 2 -44 q8 14 4 44 Z" fill="var(--art)"/>
-      <path d="M30 52 q-14 -10 -10 -26 q10 6 12 24 M50 52 q14 -10 10 -26 q-10 6 -12 24" fill="var(--art)" opacity="0.8"/>
-      <circle cx="41" cy="20" r="4" fill="#111" opacity="0.5"/></svg>`;
-  }
-  if (defId === 'cultist' || defId === 'chosen') {
-    // Hooded robe with glowing eyes.
-    return `<svg viewBox="0 0 80 60"><path d="M40 4 q18 8 20 52 L20 56 q2 -44 20 -52 Z" fill="var(--art)"/>
-      <path d="M40 8 q11 6 13 22 L27 30 q2 -16 13 -22 Z" fill="#111" opacity="0.55"/>
-      <circle cx="35" cy="22" r="2.4" fill="#ffd75e"/><circle cx="45" cy="22" r="2.4" fill="#ffd75e"/>
-      <path d="M28 44 q12 6 24 0" stroke="#111" stroke-width="2" fill="none" opacity="0.4"/></svg>`;
-  }
-  if (defId === 'gremlin_nob' || defId === 'centurion') {
-    // Bulky warrior silhouette with a raised weapon.
-    return `<svg viewBox="0 0 80 60"><ellipse cx="38" cy="40" rx="20" ry="17" fill="var(--art)"/>
-      <circle cx="38" cy="18" r="10" fill="var(--art)"/>
-      <rect x="60" y="10" width="5" height="34" rx="2" fill="#8a8578"/>
-      <rect x="54" y="8" width="17" height="7" rx="2" fill="#b8b3a4"/>
-      <circle cx="34" cy="16" r="2.2" fill="#111"/><circle cx="42" cy="16" r="2.2" fill="#111"/>
-      <path d="M31 24 q7 4 14 0" stroke="#111" stroke-width="2" fill="none" opacity="0.6"/></svg>`;
-  }
-  if (defId === 'orb_walker') {
-    // Floating orb with a single lens and spindly legs.
-    return `<svg viewBox="0 0 80 60"><circle cx="40" cy="26" r="17" fill="var(--art)"/>
-      <circle cx="40" cy="26" r="8" fill="#111" opacity="0.6"/><circle cx="40" cy="26" r="3.5" fill="#ffd75e"/>
-      <path d="M28 38 L20 56 M40 43 L40 58 M52 38 L60 56" stroke="var(--art)" stroke-width="3" fill="none"/></svg>`;
-  }
-  if (defId === 'giant_head') {
-    // A colossal stone face.
-    return `<svg viewBox="0 0 80 60"><ellipse cx="40" cy="32" rx="28" ry="26" fill="var(--art)"/>
-      <ellipse cx="30" cy="26" rx="6" ry="4" fill="#111" opacity="0.75"/>
-      <ellipse cx="50" cy="26" rx="6" ry="4" fill="#111" opacity="0.75"/>
-      <circle cx="30" cy="26" r="1.8" fill="#ffd75e"/><circle cx="50" cy="26" r="1.8" fill="#ffd75e"/>
-      <path d="M28 46 q12 -6 24 0" stroke="#111" stroke-width="3" fill="none" opacity="0.6"/>
-      <path d="M14 18 L22 12 M66 18 L58 12" stroke="var(--art)" stroke-width="4"/></svg>`;
-  }
-  if (defId === 'the_shadow') {
-    // Layered wisp with a trailing tail.
-    return `<svg viewBox="0 0 80 60"><path d="M40 4 q22 10 18 34 q-2 16 -18 20 q-16 -4 -18 -20 q-4 -24 18 -34 Z" fill="var(--art)"/>
-      <path d="M40 10 q15 8 12 26 q-2 12 -12 15 q-10 -3 -12 -15 q-3 -18 12 -26 Z" fill="#111" opacity="0.35"/>
-      <circle cx="33" cy="26" r="3" fill="#c9b6ff"/><circle cx="47" cy="26" r="3" fill="#c9b6ff"/>
-      <path d="M26 52 q-6 6 -12 4 M54 52 q6 6 12 4" stroke="var(--art)" stroke-width="3" fill="none" opacity="0.7"/></svg>`;
-  }
-  if (defId === 'shelled_parasite') {
-    // Segmented shell with a soft underside.
-    return `<svg viewBox="0 0 80 60"><path d="M12 44 q28 -40 56 0 Z" fill="var(--art)"/>
-      <path d="M22 40 q18 -24 36 0 M30 42 q10 -14 20 0" stroke="#111" stroke-width="2" fill="none" opacity="0.35"/>
-      <ellipse cx="40" cy="48" rx="26" ry="7" fill="var(--art)" opacity="0.6"/>
-      <circle cx="34" cy="47" r="2" fill="#111"/><circle cx="46" cy="47" r="2" fill="#111"/></svg>`;
-  }
-  return `<svg viewBox="0 0 80 60"><path d="M40 8 L62 56 L18 56 Z" fill="var(--art)"/>
-    <circle cx="40" cy="26" r="9" fill="#111" opacity="0.6"/>
-    <circle cx="37" cy="25" r="2" fill="#e8d44d"/><circle cx="44" cy="25" r="2" fill="#e8d44d"/></svg>`;
+/** Generated PNG assets (scripts/generate-art.ts) served from public/art/. */
+function artUrl(dir: 'cards' | 'enemies' | 'relics' | 'potions' | 'bg', id: string): string {
+  return `/art/${dir}/${id}.webp`;
 }
 
 /** Enemies rendered at a larger scale (bosses and elites). */
 const BIG_ENEMIES = new Set(['boss_maw', 'slime_king', 'the_shadow', 'gremlin_nob', 'giant_head']);
-
-const ENEMY_COLORS: Record<string, string> = {
-  jaw_worm: '#7aa35c',
-  cultist: '#8a5fb0',
-  acid_slime: '#5fb08a',
-  spike_slime_m: '#b05f6b',
-  louse_red: '#c26d4f',
-  boss_maw: '#a83f57',
-  shelled_parasite: '#8f9a5c',
-  byrd: '#5c8fb0',
-  chosen: '#b05c9a',
-  snake_plant: '#4f9a4f',
-  centurion: '#9a6f4f',
-  gremlin_nob: '#b0455c',
-  slime_king: '#3f8a6a',
-  writhing_mass: '#6a5a7a',
-  orb_walker: '#b09a3e',
-  spire_growth: '#3e7a5a',
-  darkling: '#4a4560',
-  giant_head: '#8a7a6a',
-  the_shadow: '#3a2f4f',
-};
 
 const CARD_TYPE_ICONS: Record<string, string> = {
   attack: '⚔',
@@ -168,7 +67,7 @@ function cardFaceHtml(def: CardDef, extraClass = '', dataAttr = ''): string {
         <div class="card-name">${def.name}</div>
         <div class="card-type">${icon} ${CARD_TYPE_NAMES[def.type]}</div>
       </div>
-      <div class="card-watermark">${icon}</div>
+      <div class="card-art"><img src="${artUrl('cards', def.id)}" alt="" draggable="false"></div>
       <div class="card-text">${cardText(def)}</div>
     </div>`;
 }
@@ -205,10 +104,10 @@ export class App {
       ? `<button class="primary-btn" data-resume>繼續冒險</button>
          <button class="ghost-btn" data-abandon>放棄存檔，重新開始</button>`
       : '<button class="primary-btn" data-start>開始冒險</button>';
+    document.body.dataset.phase = 'title';
     this.root.innerHTML = `
       <div class="game">
         <div class="dialog-screen center title-screen">
-          <div class="title-emblem">🗼</div>
           <h1 class="game-title">尖塔試煉</h1>
           <p class="game-subtitle">卡牌構築・三幕地城・一次生命</p>
           ${saveInfo}
@@ -295,6 +194,7 @@ export class App {
     const lostHp = before.playerHp - player.hp;
     if (lostHp > 0) {
       panel.classList.add('hit');
+      this.root.querySelector('.hero-side')?.classList.add('hit');
       this.floatText(panel, `-${lostHp}`, 'dmg');
       sound.play('hurt');
       // Big hits rattle the whole arena.
@@ -440,6 +340,8 @@ export class App {
         screen = this.resultScreen(this.run.phase);
         break;
     }
+    // Per-phase full-bleed background image, applied at the body level.
+    document.body.dataset.phase = this.run.phase;
     this.root.innerHTML = `<div class="game">${this.topBarHtml()}${screen}</div>`;
     this.bind();
 
@@ -453,7 +355,7 @@ export class App {
     const relics = this.run.relics
       .map((id) => {
         const def = getRelicDef(id);
-        return `<span class="relic-chip" title="${def.name}：${def.desc}">🏺</span>`;
+        return `<span class="relic-chip" title="${def.name}：${def.desc}"><img class="chip-icon" src="${artUrl('relics', id)}" alt="${def.name}"></span>`;
       })
       .join('');
     const inBattle = this.run.phase === 'battle';
@@ -461,7 +363,7 @@ export class App {
       .map((id, i) => {
         const def = getPotionDef(id);
         const cls = `potion-chip ${inBattle ? 'usable' : ''} ${this.potionSelected === i ? 'selected' : ''}`;
-        return `<span class="${cls}" data-potion="${i}" title="${def.name}：${def.desc}${inBattle ? '（點擊使用）' : ''}">🧪</span>`;
+        return `<span class="${cls}" data-potion="${i}" title="${def.name}：${def.desc}${inBattle ? '（點擊使用）' : ''}"><img class="chip-icon" src="${artUrl('potions', id)}" alt="${def.name}"></span>`;
       })
       .join('');
     return `
@@ -483,7 +385,7 @@ export class App {
     const extras: string[] = [`💰 +${reward.gold} 金幣`, '❤ 進入下一幕時完全回復生命'];
     if (reward.relic) {
       const def = getRelicDef(reward.relic);
-      extras.push(`🏺 ${def.name} — ${def.desc}`);
+      extras.push(`<img class="inline-icon" src="${artUrl('relics', reward.relic)}" alt=""> ${def.name} — ${def.desc}`);
     }
     const cards = reward.cards
       .map((id) => cardFaceHtml(getCardDef(id), 'pickable', `data-reward="${id}"`))
@@ -551,7 +453,12 @@ export class App {
     return `
       <div class="battle">
         <div class="turn-label">回合 ${turn}</div>
-        <div class="enemies-row">${enemies.map((e, i) => this.enemyHtml(e, i)).join('')}</div>
+        <div class="arena">
+          <div class="hero-side">
+            <img src="${artUrl('bg', 'hero')}" alt="你" draggable="false">
+          </div>
+          <div class="enemies-row">${enemies.map((e, i) => this.enemyHtml(e, i)).join('')}</div>
+        </div>
         <div class="player-row">
           <div class="player-panel">
             <div class="actor-name">你</div>
@@ -609,10 +516,9 @@ export class App {
     const targetable = (this.selected !== null || this.potionSelected !== null) && !dead;
     const big = BIG_ENEMIES.has(enemy.defId) ? 'big' : '';
     return `
-      <div class="enemy ${big} ${dead ? 'dead' : ''} ${targetable ? 'targetable' : ''}" data-enemy="${index}"
-           style="--art:${ENEMY_COLORS[enemy.defId] ?? '#888'}">
+      <div class="enemy ${big} ${dead ? 'dead' : ''} ${targetable ? 'targetable' : ''}" data-enemy="${index}">
         ${intent}
-        <div class="enemy-art">${enemyArt(enemy.defId)}</div>
+        <div class="enemy-art"><img src="${artUrl('enemies', enemy.defId)}" alt="${enemy.name}" draggable="false"></div>
         <div class="actor-name">${enemy.name}</div>
         ${this.hpBarHtml(enemy.hp, enemy.maxHp, enemy.block)}
         <div class="statuses">${this.statusesHtml(enemy.statuses)}</div>
@@ -653,11 +559,11 @@ export class App {
     const extras: string[] = [`💰 +${reward.gold} 金幣`];
     if (reward.relic) {
       const def = getRelicDef(reward.relic);
-      extras.push(`🏺 ${def.name} — ${def.desc}`);
+      extras.push(`<img class="inline-icon" src="${artUrl('relics', reward.relic)}" alt=""> ${def.name} — ${def.desc}`);
     }
     if (reward.potion) {
       const def = getPotionDef(reward.potion);
-      extras.push(`🧪 ${def.name} — ${def.desc}`);
+      extras.push(`<img class="inline-icon" src="${artUrl('potions', reward.potion)}" alt=""> ${def.name} — ${def.desc}`);
     }
     return `
       <div class="dialog-screen">
@@ -713,7 +619,7 @@ export class App {
         const afford = this.run.gold >= item.price;
         return `
           <button class="shop-row ${afford ? '' : 'dimmed'}" data-buy-relic="${i}" ${afford ? '' : 'disabled'}>
-            🏺 ${def.name} — ${def.desc} <span class="price-tag">💰 ${item.price}</span>
+            <img class="inline-icon" src="${artUrl('relics', item.id)}" alt=""> ${def.name} — ${def.desc} <span class="price-tag">💰 ${item.price}</span>
           </button>`;
       })
       .join('');
@@ -724,7 +630,7 @@ export class App {
         const afford = this.run.gold >= item.price && this.run.potions.length < 3;
         return `
           <button class="shop-row ${afford ? '' : 'dimmed'}" data-buy-potion="${i}" ${afford ? '' : 'disabled'}>
-            🧪 ${def.name} — ${def.desc} <span class="price-tag">💰 ${item.price}</span>
+            <img class="inline-icon" src="${artUrl('potions', item.id)}" alt=""> ${def.name} — ${def.desc} <span class="price-tag">💰 ${item.price}</span>
           </button>`;
       })
       .join('');
