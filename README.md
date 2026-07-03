@@ -1,4 +1,4 @@
-# Spire Trial（尖塔試煉）
+# Spire Trial
 
 A *Slay the Spire*–style deck-building roguelike, built as an **experimental vibe-coding project** — the entire game (engine, balance tooling, UI, art, audio) was developed in an AI-assisted workflow over ~18 working days.
 
@@ -61,11 +61,9 @@ src/ui/       DOM rendering layer (app.ts is the only file that touches the DOM)
 scripts/      asset pipelines: generate-art.ts / generate-audio.ts (prompts in version
               control, reproducible) + optimize-art.ts / optimize-audio.ts
 tests/        vitest suites
-docs/         design docs (rules of record: docs/DESIGN.md)
 ```
 
 Design principles: logic/presentation separation, data-driven content, all randomness reproducible.
-Development history (in Traditional Chinese) lives in [PROGRESS.md](PROGRESS.md).
 
 ## License
 

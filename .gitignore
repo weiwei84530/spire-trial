@@ -3,3 +3,9 @@ dist/
 *.local
 art-src/
 audio-src/
+
+# Local-only development docs and tooling (kept out of the public repo)
+CLAUDE.md
+PROGRESS.md
+docs/
+.claude/
