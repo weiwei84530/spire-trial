@@ -73,12 +73,10 @@ class SoundManager {
     if (typeof window !== 'undefined') {
       // Dev hook, mirrors window.__app: lets browser-side tests inspect audio state.
       (window as unknown as { __sound: SoundManager }).__sound = this;
-      const unlock = () => {
+      window.addEventListener('pointerdown', () => {
         this.ensure();
-        if (this.pendingKey !== null) this.startTrack(this.pendingKey, this.pendingKey.startsWith('stinger'));
-        this.pendingKey = null;
-      };
-      window.addEventListener('pointerdown', unlock, { once: true });
+        this.flushPending();
+      }, { once: true });
     }
   }
 
@@ -95,9 +93,19 @@ class SoundManager {
     return this.muted;
   }
 
+  /** Starts whatever music was queued while the context could not run yet. */
+  private flushPending(): void {
+    if (this.pendingKey === null) return;
+    const key = this.pendingKey;
+    this.pendingKey = null;
+    this.startTrack(key, key.startsWith('stinger'));
+  }
+
   private ensure(): AudioContext | null {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      // Queued music must start once resume() actually completes; the state
+      // check in setPhase can race a resume that is still in flight.
+      if (this.ctx.state === 'suspended') void this.ctx.resume().then(() => this.flushPending());
       return this.ctx;
     }
     const Ctor = window.AudioContext ?? (window as never)['webkitAudioContext'];
@@ -179,6 +187,8 @@ class SoundManager {
         return;
       }
     }
+    // A directly started track supersedes anything still queued.
+    this.pendingKey = null;
     this.startTrack(key, oneShot);
   }
 
