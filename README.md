@@ -24,7 +24,7 @@ A *Slay the Spire*–style deck-building roguelike, built as an **experimental v
 - **Balance simulator**: a greedy-policy AI plays thousands of full runs headlessly to measure win rates that drive tuning (currently ~25% for the greedy bot, targeting ~30%+ for skilled humans).
 - Fully AI-generated art set (126 images) and audio set (14 SFX + 4 looping BGM tracks + stingers), damage floats, screen shake, Web Audio music layer with crossfade.
 
-The in-game language is currently Traditional Chinese; an English localization with an in-game language toggle is planned.
+The game is fully bilingual — English by default, with Traditional Chinese switchable in the in-game settings menu.
 
 ## Quick start
 

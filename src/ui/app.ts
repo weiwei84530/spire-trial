@@ -11,7 +11,23 @@ import { Run, type RunSave } from '../engine/run';
 import type { MapNode, NodeKind } from '../engine/map';
 import type { CardDef, CardInstance, EnemyState } from '../engine/types';
 import type { IntentPreview } from '../engine/battle';
-import { cardText, CARD_TYPE_NAMES, STATUS_NAMES } from './describe';
+import { cardText } from './describe';
+import {
+  cardTypeName,
+  enemyName,
+  eventChoiceLabel,
+  eventResult,
+  eventText,
+  eventTitle,
+  locale,
+  nodeName,
+  potionDesc,
+  relicDesc,
+  setLocale,
+  statusName,
+  t,
+  type Locale,
+} from './i18n';
 import { sound } from './sound';
 import { clearSave, loadRun, saveRun } from './storage';
 
@@ -21,15 +37,6 @@ interface BattleSnapshot {
   playerHp: number;
   playerBlock: number;
 }
-
-const NODE_NAMES: Record<NodeKind, string> = {
-  battle: '戰鬥',
-  elite: '精英',
-  rest: '營火',
-  event: '事件',
-  shop: '商店',
-  boss: '頭目',
-};
 
 /** Generated assets (scripts/generate-art.ts) served from public/art/. */
 function artUrl(
@@ -89,7 +96,7 @@ function cardFaceHtml(def: CardDef, extraClass = '', dataAttr = '', styleExtra =
       <div class="cost">${cost}</div>
       <div class="card-head">
         <div class="card-name">${def.name}</div>
-        <div class="card-type">${CARD_TYPE_NAMES[def.type]}</div>
+        <div class="card-type">${cardTypeName(def.type)}</div>
       </div>
       <div class="card-art"><img src="${artUrl('cards', def.id)}" alt="" draggable="false"></div>
       <div class="card-text">${cardText(def)}</div>
@@ -111,38 +118,55 @@ export class App {
   private pendingResume: RunSave | null = null;
   /** Previous run phase; a change triggers the screen-enter transition. */
   private lastPhase: string | null = null;
+  /** Whether the title screen (not the run) is currently shown. */
+  private onTitle = true;
+  private settingsOpen = false;
+  private pauseOpen = false;
+  /** Restart in the pause menu needs a second confirming click. */
+  private restartArmed = false;
   private readonly root: HTMLElement;
 
   constructor(root: HTMLElement) {
     this.root = root;
     // Dev hook: lets browser-side tests drive the app without physical clicks.
     (window as unknown as { __app: App }).__app = this;
+    setLocale(locale()); // sync <html lang> with the persisted locale
     this.pendingResume = loadRun();
     this.renderTitle();
   }
 
+  /** Re-renders whichever screen is showing (title or run). */
+  private rerender(): void {
+    if (this.onTitle) this.renderTitle();
+    else this.render();
+  }
+
   /** Title screen; doubles as the resume prompt when a save exists. */
   private renderTitle(): void {
+    this.onTitle = true;
     const save = this.pendingResume;
     const saveInfo = save
-      ? `<p class="save-info">發現進行中的冒險：第 ${save.act} 幕・樓層 ${save.visited.length}／${save.map.rows.length}，
-         生命 ${save.hp}/${save.maxHp}，金幣 ${save.gold}，牌組 ${save.deck.length} 張</p>`
+      ? `<p class="save-info">${t('saveInfo', save.act, save.visited.length, save.map.rows.length, save.hp, save.maxHp, save.gold, save.deck.length)}</p>`
       : '';
     const buttons = save
-      ? `<button class="primary-btn" data-resume>繼續冒險</button>
-         <button class="ghost-btn" data-abandon>放棄存檔，重新開始</button>`
-      : '<button class="primary-btn" data-start>開始冒險</button>';
+      ? `<button class="primary-btn" data-resume>${t('resume')}</button>
+         <button class="ghost-btn" data-abandon>${t('abandon')}</button>`
+      : `<button class="primary-btn" data-start>${t('start')}</button>`;
     document.body.dataset.phase = 'title';
     sound.setPhase('title');
     this.root.innerHTML = `
       <div class="game">
         <div class="dialog-screen center title-screen screen-enter">
           <div class="embers">${emberHtml(16)}</div>
-          <img class="logo-img" src="${artUrl('bg', 'logo')}" alt="尖塔試煉" draggable="false">
-          <p class="game-subtitle">卡牌構築・三幕地城・一次生命</p>
+          <img class="logo-img" src="${artUrl('bg', locale() === 'zh' ? 'logo' : 'logo_en')}" alt="Spire Trial" draggable="false">
+          <p class="game-subtitle">${t('subtitle')}</p>
           ${saveInfo}
           ${buttons}
+          <button class="ghost-btn title-settings" data-open-settings>
+            ${iconHtml('ui_menu', 'inline-icon')} ${t('settings')}
+          </button>
         </div>
+        ${this.settingsOpen ? this.settingsOverlayHtml() : ''}
       </div>`;
     this.root.querySelector('[data-start]')?.addEventListener('click', () => {
       sound.play('click');
@@ -159,6 +183,7 @@ export class App {
       clearSave();
       this.newRun();
     });
+    this.bindMenus();
   }
 
   private newRun(): void {
@@ -168,6 +193,10 @@ export class App {
     this.potionSelected = null;
     this.removeMode = false;
     this.pileView = null;
+    this.pendingResume = null;
+    this.pauseOpen = false;
+    this.settingsOpen = false;
+    this.restartArmed = false;
     this.render();
   }
 
@@ -396,11 +425,13 @@ export class App {
         screen = this.resultScreen(this.run.phase);
         break;
     }
+    this.onTitle = false;
     // Per-phase full-bleed background image, applied at the body level.
     document.body.dataset.phase = this.run.phase;
     const bossBattle = this.run.phase === 'battle' && this.isBossNode();
     sound.setPhase(this.run.phase, bossBattle);
-    this.root.innerHTML = `<div class="game">${this.topBarHtml()}${screen}</div>`;
+    const overlays = `${this.pauseOpen ? this.pauseOverlayHtml() : ''}${this.settingsOpen ? this.settingsOverlayHtml() : ''}`;
+    this.root.innerHTML = `<div class="game">${this.topBarHtml()}${screen}${overlays}</div>`;
     // Slide-and-fade the screen in whenever the run phase changes.
     if (this.run.phase !== this.lastPhase) {
       this.root.querySelector('.game > :nth-child(2)')?.classList.add('screen-enter');
@@ -419,7 +450,7 @@ export class App {
     const relics = this.run.relics
       .map((id) => {
         const def = getRelicDef(id);
-        return `<span class="relic-chip" title="${def.name}：${def.desc}"><img class="chip-icon" src="${artUrl('relics', id)}" alt="${def.name}"></span>`;
+        return `<span class="relic-chip" title="${def.name}: ${relicDesc(id, def.desc)}"><img class="chip-icon" src="${artUrl('relics', id)}" alt="${def.name}"></span>`;
       })
       .join('');
     const inBattle = this.run.phase === 'battle';
@@ -427,43 +458,157 @@ export class App {
       .map((id, i) => {
         const def = getPotionDef(id);
         const cls = `potion-chip ${inBattle ? 'usable' : ''} ${this.potionSelected === i ? 'selected' : ''}`;
-        return `<span class="${cls}" data-potion="${i}" title="${def.name}：${def.desc}${inBattle ? '（點擊使用）' : ''}"><img class="chip-icon" src="${artUrl('potions', id)}" alt="${def.name}"></span>`;
+        return `<span class="${cls}" data-potion="${i}" title="${def.name}: ${potionDesc(id, def.desc)}${inBattle ? t('clickToUse') : ''}"><img class="chip-icon" src="${artUrl('potions', id)}" alt="${def.name}"></span>`;
       })
       .join('');
     return `
       <div class="top-bar">
-        <span class="stat">${iconHtml('ui_hp', 'chip-icon', '生命')} ${this.run.hp}/${this.run.maxHp}</span>
-        <span class="stat">${iconHtml('ui_gold', 'chip-icon', '金幣')} ${this.run.gold}</span>
-        <span class="stat" title="牌組">${iconHtml('ui_deck', 'chip-icon', '牌組')} ${this.run.deck.length}</span>
+        <span class="stat">${iconHtml('ui_hp', 'chip-icon', t('hp'))} ${this.run.hp}/${this.run.maxHp}</span>
+        <span class="stat">${iconHtml('ui_gold', 'chip-icon', t('gold'))} ${this.run.gold}</span>
+        <span class="stat" title="${t('deck')}">${iconHtml('ui_deck', 'chip-icon', t('deck'))} ${this.run.deck.length}</span>
         <span class="chip-group">${relics}</span>
         <span class="chip-group">${potions}</span>
         <span class="top-bar-right">
-          <span class="mute-chip" data-mute title="音效／音樂開關">${iconHtml(sound.muted ? 'ui_sound_off' : 'ui_sound_on')}</span>
-          <span class="stat">${iconHtml('ui_floor', 'chip-icon', '樓層')} 第 ${this.run.act} 幕・${floor}/${this.run.map.rows.length}</span>
+          <span class="mute-chip" data-mute title="${t('soundToggle')}">${iconHtml(sound.muted ? 'ui_sound_off' : 'ui_sound_on')}</span>
+          <span class="mute-chip" data-pause title="${t('pauseTitle')}">${iconHtml('ui_menu')}</span>
+          <span class="stat">${iconHtml('ui_floor', 'chip-icon', t('floor'))} ${t('actFloor', this.run.act, floor, this.run.map.rows.length)}</span>
         </span>
       </div>`;
+  }
+
+  // --- pause & settings overlays ---
+
+  private pauseOverlayHtml(): string {
+    return `
+      <div class="overlay">
+        <div class="overlay-box menu-box">
+          <h2>${t('paused')}</h2>
+          <button class="primary-btn" data-resume-game>${t('resumeGame')}</button>
+          <button class="ghost-btn" data-open-settings>${t('settings')}</button>
+          <button class="ghost-btn" data-back-title>${t('backToTitle')}</button>
+          <button class="ghost-btn ${this.restartArmed ? 'danger' : ''}" data-restart>
+            ${this.restartArmed ? t('restartConfirm') : t('restartRun')}
+          </button>
+        </div>
+      </div>`;
+  }
+
+  private settingsOverlayHtml(): string {
+    const langBtn = (l: Locale, label: string) =>
+      `<button class="ghost-btn lang-btn ${locale() === l ? 'active' : ''}" data-lang="${l}">${label}</button>`;
+    return `
+      <div class="overlay">
+        <div class="overlay-box menu-box settings-box">
+          <h2>${t('settings')}</h2>
+          <div class="setting-row">
+            <span>${t('language')}</span>
+            <span>${langBtn('en', 'English')}${langBtn('zh', '中文')}</span>
+          </div>
+          <div class="setting-row">
+            <span>${t('musicVolume')}</span>
+            <input type="range" min="0" max="100" value="${Math.round(sound.musicVolume * 100)}" data-vol="music">
+          </div>
+          <div class="setting-row">
+            <span>${t('sfxVolume')}</span>
+            <input type="range" min="0" max="100" value="${Math.round(sound.sfxVolume * 100)}" data-vol="sfx">
+          </div>
+          <div class="setting-row">
+            <span>${t('muteAll')}</span>
+            <button class="ghost-btn lang-btn ${sound.muted ? 'active' : ''}" data-mute-toggle>
+              ${iconHtml(sound.muted ? 'ui_sound_off' : 'ui_sound_on', 'inline-icon')}
+            </button>
+          </div>
+          <button class="primary-btn" data-close-settings>${t('close')}</button>
+        </div>
+      </div>`;
+  }
+
+  /** Handlers for the pause/settings overlays and their openers (title + run). */
+  private bindMenus(): void {
+    const on = (selector: string, fn: (el: HTMLElement) => void) => {
+      this.root.querySelectorAll<HTMLElement>(selector).forEach((el) => {
+        el.addEventListener('click', () => fn(el));
+      });
+    };
+    on('[data-pause]', () => {
+      sound.play('click');
+      this.pauseOpen = true;
+      this.restartArmed = false;
+      this.rerender();
+    });
+    on('[data-resume-game]', () => {
+      sound.play('click');
+      this.pauseOpen = false;
+      this.restartArmed = false;
+      this.rerender();
+    });
+    on('[data-open-settings]', () => {
+      sound.play('click');
+      this.settingsOpen = true;
+      this.rerender();
+    });
+    on('[data-close-settings]', () => {
+      sound.play('click');
+      this.settingsOpen = false;
+      this.rerender();
+    });
+    on('[data-back-title]', () => {
+      sound.play('click');
+      this.pauseOpen = false;
+      this.settingsOpen = false;
+      this.restartArmed = false;
+      this.pendingResume = loadRun();
+      this.renderTitle();
+    });
+    on('[data-restart]', () => {
+      sound.play('click');
+      if (!this.restartArmed) {
+        this.restartArmed = true;
+        this.rerender();
+        return;
+      }
+      this.newRun();
+    });
+    on('[data-lang]', (el) => {
+      sound.play('click');
+      setLocale(el.dataset.lang as Locale);
+      this.rerender();
+    });
+    on('[data-mute-toggle]', () => {
+      sound.toggle();
+      this.rerender();
+    });
+    this.root.querySelectorAll<HTMLInputElement>('[data-vol]').forEach((el) => {
+      el.addEventListener('input', () => {
+        const v = Number(el.value) / 100;
+        if (el.dataset.vol === 'music') sound.setMusicVolume(v);
+        else sound.setSfxVolume(v);
+      });
+      // Let go of the slider = hear the new SFX level immediately.
+      if (el.dataset.vol === 'sfx') el.addEventListener('change', () => sound.play('click'));
+    });
   }
 
   private actTransitionScreen(): string {
     const reward = this.run.reward!;
     const extras: string[] = [
-      `${iconHtml('ui_gold', 'inline-icon')} +${reward.gold} 金幣`,
-      `${iconHtml('ui_hp', 'inline-icon')} 進入下一幕時完全回復生命`,
+      `${iconHtml('ui_gold', 'inline-icon')} ${t('goldReward', reward.gold)}`,
+      `${iconHtml('ui_hp', 'inline-icon')} ${t('actHeal')}`,
     ];
     if (reward.relic) {
       const def = getRelicDef(reward.relic);
-      extras.push(`<img class="inline-icon" src="${artUrl('relics', reward.relic)}" alt=""> ${def.name} — ${def.desc}`);
+      extras.push(`<img class="inline-icon" src="${artUrl('relics', reward.relic)}" alt=""> ${def.name} — ${relicDesc(reward.relic, def.desc)}`);
     }
     const cards = reward.cards
       .map((id) => cardFaceHtml(getCardDef(id), 'pickable', `data-reward="${id}"`))
       .join('');
     return `
       <div class="dialog-screen">
-        <h2>第 ${this.run.act} 幕完成！</h2>
+        <h2>${t('actDone', this.run.act)}</h2>
         <div class="reward-extras">${extras.map((e) => `<div>${e}</div>`).join('')}</div>
-        <h3>選擇一張卡牌，然後前往第 ${this.run.act + 1} 幕：</h3>
+        <h3>${t('actChooseCard', this.run.act + 1)}</h3>
         <div class="card-row">${cards}</div>
-        <button class="ghost-btn" data-skip-reward>跳過卡牌，直接前進</button>
+        <button class="ghost-btn" data-skip-reward>${t('actSkip')}</button>
       </div>`;
   }
 
@@ -502,14 +647,14 @@ export class App {
           <g class="${cls}" data-node="${node.id}" transform="translate(${x(node.col)},${y(node.row)})">
             <circle r="${r}"/>
             <image href="${artUrl('icons', NODE_ICON[node.kind])}" x="${-s / 2}" y="${-s / 2}" width="${s}" height="${s}"/>
-            <title>${NODE_NAMES[node.kind]}</title>
+            <title>${nodeName(node.kind)}</title>
           </g>`;
       }
     }
 
     return `
       <div class="map-screen">
-        <h2>選擇下一個地點</h2>
+        <h2>${t('chooseNode')}</h2>
         <svg viewBox="0 0 ${width} ${height}" class="map-svg">${edges}${nodes}</svg>
       </div>`;
   }
@@ -524,31 +669,31 @@ export class App {
       : '';
     return `
       <div class="battle">
-        <div class="turn-label">回合 ${turn}</div>
+        <div class="turn-label">${t('turn', turn)}</div>
         <div class="arena">
           <div class="hero-side">
-            <img src="${artUrl('bg', 'hero')}" alt="你" draggable="false">
+            <img src="${artUrl('bg', 'hero')}" alt="${t('you')}" draggable="false">
           </div>
           <div class="enemies-row">${enemies.map((e, i) => this.enemyHtml(e, i)).join('')}</div>
         </div>
         <div class="player-row">
           <div class="player-panel">
-            <div class="actor-name">你</div>
+            <div class="actor-name">${t('you')}</div>
             ${this.hpBarHtml(player.hp, player.maxHp, player.block)}
             <div class="statuses">${this.statusesHtml(player.statuses)}</div>
           </div>
-          <div class="energy-orb" title="能量" style="background-image:url('${artUrl('frames', 'energy_orb')}')">
+          <div class="energy-orb" title="${t('energy')}" style="background-image:url('${artUrl('frames', 'energy_orb')}')">
             <span>${player.energy}/${player.maxEnergy}</span>
           </div>
           <div class="piles">
-            <span class="pile-link" data-pile="drawPile">${iconHtml('ui_draw', 'pile-icon', '抽牌堆')} ${player.drawPile.length}</span>
-            <span class="pile-link" data-pile="discardPile">${iconHtml('ui_discard', 'pile-icon', '棄牌堆')} ${player.discardPile.length}</span>
-            <span class="pile-link" data-pile="exhaustPile">${iconHtml('ui_exhaust', 'pile-icon', '消耗堆')} ${player.exhaustPile.length}</span>
+            <span class="pile-link" data-pile="drawPile">${iconHtml('ui_draw', 'pile-icon', t('drawPile'))} ${player.drawPile.length}</span>
+            <span class="pile-link" data-pile="discardPile">${iconHtml('ui_discard', 'pile-icon', t('discardPile'))} ${player.discardPile.length}</span>
+            <span class="pile-link" data-pile="exhaustPile">${iconHtml('ui_exhaust', 'pile-icon', t('exhaustPile'))} ${player.exhaustPile.length}</span>
           </div>
           ${this.endTurnButtonHtml()}
         </div>
         <div class="hand">${player.hand.map((c, i) => this.handCardHtml(c, i, player.hand.length)).join('')}</div>
-        <button class="log-toggle ${this.logOpen ? 'open' : ''}" data-toggle-log>戰鬥紀錄</button>
+        <button class="log-toggle ${this.logOpen ? 'open' : ''}" data-toggle-log>${t('battleLog')}</button>
         ${log}
         ${this.pileView ? this.pileOverlayHtml() : ''}
       </div>`;
@@ -560,13 +705,12 @@ export class App {
     const player = battle.state.player;
     const wouldWaste =
       player.energy > 0 && player.hand.some((_, i) => this.isHandCardPlayable(i));
-    if (!wouldWaste) return '<button class="end-turn">結束回合</button>';
-    return `<button class="end-turn warn" title="還有可打出的卡牌">結束回合（剩 ${player.energy} 能量）</button>`;
+    if (!wouldWaste) return `<button class="end-turn">${t('endTurn')}</button>`;
+    return `<button class="end-turn warn" title="${t('playableLeft')}">${t('endTurnEnergy', player.energy)}</button>`;
   }
 
   private pileOverlayHtml(): string {
     const battle = this.run.battle!;
-    const pileNames = { drawPile: '抽牌堆', discardPile: '棄牌堆', exhaustPile: '消耗堆' } as const;
     const pile = battle.state.player[this.pileView!];
     // Sorted by name so the draw pile view does not leak draw order.
     const cards = [...pile]
@@ -577,9 +721,9 @@ export class App {
     return `
       <div class="overlay" data-close-pile>
         <div class="overlay-box pile-box">
-          <h2>${pileNames[this.pileView!]}（${pile.length} 張）</h2>
-          <div class="card-row wrap">${cards || '<p>（空）</p>'}</div>
-          <button class="ghost-btn" data-close-pile>關閉</button>
+          <h2>${t('pileCount', t(this.pileView!), pile.length)}</h2>
+          <div class="card-row wrap">${cards || `<p>${t('empty')}</p>`}</div>
+          <button class="ghost-btn" data-close-pile>${t('close')}</button>
         </div>
       </div>`;
   }
@@ -590,11 +734,12 @@ export class App {
     const intent = dead ? '' : `<div class="intent">${this.intentHtml(battle.intentOf(enemy))}</div>`;
     const targetable = (this.selected !== null || this.potionSelected !== null) && !dead;
     const big = BIG_ENEMIES.has(enemy.defId) ? 'big' : '';
+    const name = enemyName(enemy.defId, enemy.name);
     return `
       <div class="enemy ${big} ${dead ? 'dead' : ''} ${targetable ? 'targetable' : ''}" data-enemy="${index}">
         ${intent}
-        <div class="enemy-art"><img src="${artUrl('enemies', enemy.defId)}" alt="${enemy.name}" draggable="false"></div>
-        <div class="actor-name">${enemy.name}</div>
+        <div class="enemy-art"><img src="${artUrl('enemies', enemy.defId)}" alt="${name}" draggable="false"></div>
+        <div class="actor-name">${name}</div>
         ${this.hpBarHtml(enemy.hp, enemy.maxHp, enemy.block)}
         <div class="statuses">${this.statusesHtml(enemy.statuses)}</div>
       </div>`;
@@ -609,11 +754,11 @@ export class App {
         return `${icon} ${intent.damage}${hits}`;
       }
       case 'defend':
-        return `${icon} 防禦`;
+        return `${icon} ${t('intentDefend')}`;
       case 'buff':
-        return `${icon} 強化`;
+        return `${icon} ${t('intentBuff')}`;
       case 'debuff':
-        return `${icon} 弱化`;
+        return `${icon} ${t('intentDebuff')}`;
     }
   }
 
@@ -643,7 +788,7 @@ export class App {
   private statusesHtml(statuses: Record<string, number | undefined>): string {
     return Object.entries(statuses)
       .filter(([, v]) => v !== undefined && v !== 0)
-      .map(([k, v]) => `<span class="status-chip">${STATUS_NAMES[k as keyof typeof STATUS_NAMES] ?? k} ${v}</span>`)
+      .map(([k, v]) => `<span class="status-chip">${statusName(k)} ${v}</span>`)
       .join('');
   }
 
@@ -654,22 +799,22 @@ export class App {
     const cards = reward.cards
       .map((id) => cardFaceHtml(getCardDef(id), 'pickable', `data-reward="${id}"`))
       .join('');
-    const extras: string[] = [`${iconHtml('ui_gold', 'inline-icon')} +${reward.gold} 金幣`];
+    const extras: string[] = [`${iconHtml('ui_gold', 'inline-icon')} ${t('goldReward', reward.gold)}`];
     if (reward.relic) {
       const def = getRelicDef(reward.relic);
-      extras.push(`<img class="inline-icon" src="${artUrl('relics', reward.relic)}" alt=""> ${def.name} — ${def.desc}`);
+      extras.push(`<img class="inline-icon" src="${artUrl('relics', reward.relic)}" alt=""> ${def.name} — ${relicDesc(reward.relic, def.desc)}`);
     }
     if (reward.potion) {
       const def = getPotionDef(reward.potion);
-      extras.push(`<img class="inline-icon" src="${artUrl('potions', reward.potion)}" alt=""> ${def.name} — ${def.desc}`);
+      extras.push(`<img class="inline-icon" src="${artUrl('potions', reward.potion)}" alt=""> ${def.name} — ${potionDesc(reward.potion, def.desc)}`);
     }
     return `
       <div class="dialog-screen">
-        <h2>勝利！</h2>
+        <h2>${t('victoryHeading')}</h2>
         <div class="reward-extras">${extras.map((e) => `<div>${e}</div>`).join('')}</div>
-        <h3>選擇一張卡牌：</h3>
+        <h3>${t('chooseCard')}</h3>
         <div class="card-row">${cards}</div>
-        <button class="ghost-btn" data-skip-reward>跳過卡牌</button>
+        <button class="ghost-btn" data-skip-reward>${t('skipCard')}</button>
       </div>`;
   }
 
@@ -677,25 +822,26 @@ export class App {
     const event = this.run.currentEvent!;
     const art = `<img class="event-art" src="${artUrl('events', event.id)}" alt="" draggable="false">`;
     if (this.run.eventResult !== null) {
+      const result = eventResult(event.id, event.choices.map((c) => c.result), this.run.eventResult);
       return `
         <div class="dialog-screen center">
-          <h2>${event.title}</h2>
+          <h2>${eventTitle(event.id, event.title)}</h2>
           ${art}
-          <p class="event-text">${this.run.eventResult}</p>
-          <button class="primary-btn" data-leave-event>繼續</button>
+          <p class="event-text">${result}</p>
+          <button class="primary-btn" data-leave-event>${t('continue')}</button>
         </div>`;
     }
     const choices = event.choices
       .map((c, i) => {
         const ok = this.run.canChooseEventOption(i);
-        return `<button class="choice-btn" data-event-choice="${i}" ${ok ? '' : 'disabled'}>${c.label}</button>`;
+        return `<button class="choice-btn" data-event-choice="${i}" ${ok ? '' : 'disabled'}>${eventChoiceLabel(event.id, i, c.label)}</button>`;
       })
       .join('');
     return `
       <div class="dialog-screen center">
-        <h2>${event.title}</h2>
+        <h2>${eventTitle(event.id, event.title)}</h2>
         ${art}
-        <p class="event-text">${event.text}</p>
+        <p class="event-text">${eventText(event.id, event.text)}</p>
         <div class="choice-list">${choices}</div>
       </div>`;
   }
@@ -704,7 +850,7 @@ export class App {
     const shop = this.run.shop!;
     const cardItems = shop.cards
       .map((item, i) => {
-        if (item.sold) return `<div class="shop-item sold">已售出</div>`;
+        if (item.sold) return `<div class="shop-item sold">${t('sold')}</div>`;
         const afford = this.run.gold >= item.price;
         return `
           <div class="shop-item">
@@ -720,7 +866,7 @@ export class App {
         const afford = this.run.gold >= item.price;
         return `
           <button class="shop-row ${afford ? '' : 'dimmed'}" data-buy-relic="${i}" ${afford ? '' : 'disabled'}>
-            <img class="inline-icon" src="${artUrl('relics', item.id)}" alt=""> ${def.name} — ${def.desc} <span class="price-tag">${iconHtml('ui_gold', 'inline-icon')} ${item.price}</span>
+            <img class="inline-icon" src="${artUrl('relics', item.id)}" alt=""> ${def.name} — ${relicDesc(item.id, def.desc)} <span class="price-tag">${iconHtml('ui_gold', 'inline-icon')} ${item.price}</span>
           </button>`;
       })
       .join('');
@@ -731,26 +877,26 @@ export class App {
         const afford = this.run.gold >= item.price && this.run.potions.length < 3;
         return `
           <button class="shop-row ${afford ? '' : 'dimmed'}" data-buy-potion="${i}" ${afford ? '' : 'disabled'}>
-            <img class="inline-icon" src="${artUrl('potions', item.id)}" alt=""> ${def.name} — ${def.desc} <span class="price-tag">${iconHtml('ui_gold', 'inline-icon')} ${item.price}</span>
+            <img class="inline-icon" src="${artUrl('potions', item.id)}" alt=""> ${def.name} — ${potionDesc(item.id, def.desc)} <span class="price-tag">${iconHtml('ui_gold', 'inline-icon')} ${item.price}</span>
           </button>`;
       })
       .join('');
     const removeAfford = !shop.removeUsed && this.run.gold >= shop.removePrice;
     const removeSection = this.removeMode
-      ? `<h3>點選要刪除的卡牌：</h3>
+      ? `<h3>${t('pickRemove')}</h3>
          <div class="card-row wrap">${this.run.deck
            .map((card, i) => cardFaceHtml(resolveCard(card), 'pickable', `data-remove-card="${i}"`))
            .join('')}</div>
-         <button class="ghost-btn" data-cancel-remove>取消</button>`
+         <button class="ghost-btn" data-cancel-remove>${t('cancel')}</button>`
       : `<button class="shop-row ${removeAfford ? '' : 'dimmed'}" data-remove-mode ${removeAfford ? '' : 'disabled'}>
-           刪除一張卡牌 <span class="price-tag">${iconHtml('ui_gold', 'inline-icon')} ${shop.removePrice}</span>${shop.removeUsed ? '（已使用）' : ''}
+           ${t('removeCard')} <span class="price-tag">${iconHtml('ui_gold', 'inline-icon')} ${shop.removePrice}</span>${shop.removeUsed ? t('removeUsed') : ''}
          </button>`;
     return `
       <div class="dialog-screen">
-        <h2>${iconHtml('node_shop', 'heading-icon')} 商店</h2>
+        <h2>${iconHtml('node_shop', 'heading-icon')} ${t('shop')}</h2>
         <div class="card-row">${cardItems}</div>
         <div class="shop-rows">${relicItems}${potionItems}${removeSection}</div>
-        <button class="ghost-btn" data-leave-shop>離開商店</button>
+        <button class="ghost-btn" data-leave-shop>${t('leaveShop')}</button>
       </div>`;
   }
 
@@ -765,38 +911,35 @@ export class App {
       .join('');
     return `
       <div class="dialog-screen">
-        <h2>${iconHtml('node_rest', 'heading-icon')} 營火</h2>
-        <p>休息回復 ${heal} HP，或鍛造升級一張卡牌。</p>
-        <button class="primary-btn" data-rest-heal>休息（+${heal} HP）</button>
-        <h3>或點選要升級的卡牌：</h3>
+        <h2>${iconHtml('node_rest', 'heading-icon')} ${t('campfire')}</h2>
+        <p>${t('restIntro', heal)}</p>
+        <button class="primary-btn" data-rest-heal>${t('restHeal', heal)}</button>
+        <h3>${t('restUpgrade')}</h3>
         <div class="card-row wrap">${deckList}</div>
       </div>`;
   }
 
   private resultScreen(phase: 'victory' | 'defeat'): string {
     const s = this.run.stats;
+    const listSep = locale() === 'zh' ? '、' : ', ';
     const rows: [string, string | number][] = [
-      ['抵達樓層', `${this.run.visited.length}/${this.run.map.rows.length}`],
-      ['戰鬥勝場', s.battlesWon],
-      ['戰鬥總回合', s.turnsTotal],
-      ['造成傷害', s.damageDealt],
-      ['承受傷害', s.damageTaken],
-      ['最終牌組', `${this.run.deck.length} 張`],
-      ['遺物', this.run.relics.map((id) => getRelicDef(id).name).join('、') || '無'],
-      ['剩餘金幣', this.run.gold],
+      [t('statFloor'), `${this.run.visited.length}/${this.run.map.rows.length}`],
+      [t('statWins'), s.battlesWon],
+      [t('statTurns'), s.turnsTotal],
+      [t('statDealt'), s.damageDealt],
+      [t('statTaken'), s.damageTaken],
+      [t('statDeck'), t('cardsCount', this.run.deck.length)],
+      [t('statRelics'), this.run.relics.map((id) => getRelicDef(id).name).join(listSep) || t('none')],
+      [t('statGold'), this.run.gold],
     ];
     return `
       <div class="dialog-screen center">
-        <h2>${phase === 'victory' ? '征服尖塔！' : '你死了…'}</h2>
-        <p>${
-          phase === 'victory'
-            ? '三幕試煉全數通過，塔頂的黑暗已被驅散。'
-            : `倒在第 ${this.run.act} 幕・樓層 ${this.run.visited.length}。`
-        }</p>
+        <h2>${phase === 'victory' ? t('winTitle') : t('loseTitle')}</h2>
+        <p>${phase === 'victory' ? t('winText') : t('loseText', this.run.act, this.run.visited.length)}</p>
         <table class="stats-table">
           ${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}
         </table>
-        <button class="primary-btn" data-new-run>開始新的一輪</button>
+        <button class="primary-btn" data-new-run>${t('newRun')}</button>
       </div>`;
   }
 
@@ -890,6 +1033,7 @@ export class App {
       this.render();
     });
     on('[data-new-run]', () => this.newRun());
+    this.bindMenus();
     const log = this.root.querySelector('.log-panel');
     if (log) log.scrollTop = log.scrollHeight;
   }

@@ -1,33 +1,19 @@
 /**
- * Generates zh-TW display text from engine data. Card names stay in English
- * (treated as proper nouns); all rule text is generated here so data files
- * never store display strings.
+ * Generates card rule text from engine data in the active locale. Card names
+ * stay in English (treated as proper nouns); all rule text is generated here
+ * so data files never store display strings.
  */
 import { getCardDef } from '../engine/cards';
-import type { CardDef, Effect, StatusId } from '../engine/types';
+import type { CardDef, Effect } from '../engine/types';
+import { locale, statusName } from './i18n';
 
-export const STATUS_NAMES: Record<StatusId, string> = {
-  vulnerable: '易傷',
-  weak: '虛弱',
-  frail: '脆弱',
-  strength: '力量',
-  dexterity: '敏捷',
-  poison: '中毒',
-  ritual: '儀式',
-  metallicize: '金屬化',
-  thorns: '反傷',
-  energized: '蓄能',
-  barricade: '屏障',
-  noxious: '毒霧',
-};
+const PILE_NAMES = {
+  hand: { en: 'hand', zh: '手牌' },
+  drawPile: { en: 'draw pile', zh: '抽牌堆' },
+  discardPile: { en: 'discard pile', zh: '棄牌堆' },
+} as const;
 
-const PILE_NAMES: Record<string, string> = {
-  hand: '手牌',
-  drawPile: '抽牌堆',
-  discardPile: '棄牌堆',
-};
-
-function effectText(effect: Effect): string {
+function effectTextZh(effect: Effect): string {
   switch (effect.kind) {
     case 'damage': {
       const times = effect.times === 'x' ? ' X 次' : effect.times && effect.times > 1 ? ` ${effect.times} 次` : '';
@@ -37,7 +23,7 @@ function effectText(effect: Effect): string {
     case 'block':
       return `獲得 ${effect.amount} 點格擋`;
     case 'applyStatus': {
-      const name = STATUS_NAMES[effect.status];
+      const name = statusName(effect.status);
       if (effect.target === 'self') return `獲得 ${effect.stacks} 層${name}`;
       const scope = effect.target === 'allEnemies' ? '對所有敵人' : '';
       return `${scope}施加 ${effect.stacks} 層${name}`;
@@ -54,29 +40,58 @@ function effectText(effect: Effect): string {
       return '格擋翻倍';
     case 'addCard': {
       const count = effect.count ?? 1;
-      return `將 ${count} 張 ${getCardDef(effect.card).name} 加入${PILE_NAMES[effect.destination]}`;
+      return `將 ${count} 張 ${getCardDef(effect.card).name} 加入${PILE_NAMES[effect.destination].zh}`;
     }
   }
 }
 
-/** Full rule text for a card face. */
-export function cardText(def: CardDef): string {
-  const parts: string[] = [];
-  if (def.unplayable) parts.push('無法打出。');
-  if (def.innate) parts.push('固有。');
-  parts.push(...def.effects.map((e) => `${effectText(e)}。`));
-  if (def.selfDamageAtTurnEnd) {
-    parts.push(`回合結束時若在手牌，受到 ${def.selfDamageAtTurnEnd} 點傷害。`);
+function effectTextEn(effect: Effect): string {
+  switch (effect.kind) {
+    case 'damage': {
+      const times = effect.times === 'x' ? ' X times' : effect.times && effect.times > 1 ? ` ${effect.times} times` : '';
+      const scope = effect.target === 'allEnemies' ? ' to ALL enemies' : '';
+      return `Deal ${effect.amount} damage${scope}${times}`;
+    }
+    case 'block':
+      return `Gain ${effect.amount} Block`;
+    case 'applyStatus': {
+      const name = statusName(effect.status);
+      if (effect.target === 'self') return `Gain ${effect.stacks} ${name}`;
+      const scope = effect.target === 'allEnemies' ? ' to ALL enemies' : '';
+      return `Apply ${effect.stacks} ${name}${scope}`;
+    }
+    case 'draw':
+      return `Draw ${effect.count} ${effect.count === 1 ? 'card' : 'cards'}`;
+    case 'gainEnergy':
+      return `Gain ${effect.amount} Energy`;
+    case 'loseHp':
+      return `Lose ${effect.amount} HP`;
+    case 'heal':
+      return `Heal ${effect.amount} HP`;
+    case 'doubleBlock':
+      return 'Double your Block';
+    case 'addCard': {
+      const count = effect.count ?? 1;
+      return `Add ${count} ${getCardDef(effect.card).name} to your ${PILE_NAMES[effect.destination].en}`;
+    }
   }
-  if (def.exhaust || def.type === 'power') parts.push('消耗。');
-  return parts.join('');
 }
 
-export const CARD_TYPE_NAMES: Record<CardDef['type'], string> = {
-  attack: '攻擊',
-  skill: '技能',
-  power: '能力',
-  status: '狀態',
-  curse: '詛咒',
-};
-
+/** Full rule text for a card face, in the active locale. */
+export function cardText(def: CardDef): string {
+  const zh = locale() === 'zh';
+  const period = zh ? '。' : '. ';
+  const parts: string[] = [];
+  if (def.unplayable) parts.push(zh ? '無法打出' : 'Unplayable');
+  if (def.innate) parts.push(zh ? '固有' : 'Innate');
+  parts.push(...def.effects.map((e) => (zh ? effectTextZh(e) : effectTextEn(e))));
+  if (def.selfDamageAtTurnEnd) {
+    parts.push(
+      zh
+        ? `回合結束時若在手牌，受到 ${def.selfDamageAtTurnEnd} 點傷害`
+        : `At the end of your turn, if this is in your hand, take ${def.selfDamageAtTurnEnd} damage`
+    );
+  }
+  if (def.exhaust || def.type === 'power') parts.push(zh ? '消耗' : 'Exhaust');
+  return parts.map((p) => `${p}${period}`).join('').trimEnd();
+}

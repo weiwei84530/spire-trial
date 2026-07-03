@@ -244,6 +244,21 @@ ASSETS.push({
     'Isolated on a fully transparent background, no other text, no watermark, no border.',
 });
 
+// English title logo (counterpart of the Chinese one above).
+ASSETS.push({
+  id: 'logo_en',
+  dir: 'bg',
+  size: '1536x1024',
+  transparent: true,
+  prompt:
+    'Game logo of exactly two English words "SPIRE TRIAL" in capital letters, written in two centered rows: ' +
+    '"SPIRE" on the first row and "TRIAL" on the second row, spelled exactly. ' +
+    'Ornate dark fantasy lettering: engraved gold metal with ember glow along the edges, ' +
+    'chipped and weathered, subtle sword-like vertical stroke flourishes. ' +
+    'Large letters filling most of the canvas, centered. ' +
+    'Isolated on a fully transparent background, no other text, no watermark, no border.',
+});
+
 // --- Map node emblems (6) ---
 
 icon('node_battle', 'two crossed straight swords emblem, steel with gold hilts');
@@ -259,6 +274,7 @@ icon('ui_hp', 'a glowing crimson heart shaped gem, gothic faceted');
 icon('ui_gold', 'a small neat stack of glowing gold coins');
 icon('ui_deck', 'a neat stack of ornate card backs, indigo with gold trim');
 icon('ui_floor', 'a slender dark spire tower emblem with tiny glowing windows');
+icon('ui_menu', 'an ornate dark iron gear emblem with a thin engraved gold rim, faint ember glow');
 icon('ui_sound_on', 'a curved golden war horn emblem emitting three small sound arcs');
 icon('ui_sound_off', 'a curved dark war horn emblem, cracked and silent, faint grey');
 icon('ui_draw', 'a face-down ornate card with a golden arrow curving upward out of it');

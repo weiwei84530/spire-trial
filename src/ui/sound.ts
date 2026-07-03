@@ -31,6 +31,8 @@ export type SfxName =
 export type MusicName = 'music_title' | 'music_map' | 'music_battle' | 'music_boss';
 
 const MUTE_KEY = 'cardgame_muted';
+const MUSIC_VOL_KEY = 'cardgame_music_vol';
+const SFX_VOL_KEY = 'cardgame_sfx_vol';
 
 const SFX_VOL = 0.9;
 const MUSIC_VOL = 0.3;
@@ -61,11 +63,16 @@ class SoundManager {
   /** Music requested before the first user gesture unlocks the context. */
   private pendingKey: string | null = null;
   muted: boolean;
+  /** User volume settings (0..1), multiplied onto the base bus levels. */
+  musicVolume = 1;
+  sfxVolume = 1;
 
   constructor() {
     let saved = false;
     try {
       saved = localStorage.getItem(MUTE_KEY) === '1';
+      this.musicVolume = readVolume(MUSIC_VOL_KEY);
+      this.sfxVolume = readVolume(SFX_VOL_KEY);
     } catch {
       /* storage unavailable: default to sound on */
     }
@@ -93,6 +100,30 @@ class SoundManager {
     return this.muted;
   }
 
+  setMusicVolume(v: number): void {
+    this.musicVolume = clamp01(v);
+    try {
+      localStorage.setItem(MUSIC_VOL_KEY, String(this.musicVolume));
+    } catch {
+      /* ignore */
+    }
+    if (this.musicBus && this.ctx) {
+      this.musicBus.gain.setTargetAtTime(this.musicVolume, this.ctx.currentTime, 0.05);
+    }
+  }
+
+  setSfxVolume(v: number): void {
+    this.sfxVolume = clamp01(v);
+    try {
+      localStorage.setItem(SFX_VOL_KEY, String(this.sfxVolume));
+    } catch {
+      /* ignore */
+    }
+    if (this.sfxBus && this.ctx) {
+      this.sfxBus.gain.setTargetAtTime(SFX_VOL * this.sfxVolume, this.ctx.currentTime, 0.05);
+    }
+  }
+
   /** Starts whatever music was queued while the context could not run yet. */
   private flushPending(): void {
     if (this.pendingKey === null) return;
@@ -115,10 +146,10 @@ class SoundManager {
     this.master.gain.value = this.muted ? 0 : 1;
     this.master.connect(this.ctx.destination);
     this.sfxBus = this.ctx.createGain();
-    this.sfxBus.gain.value = SFX_VOL;
+    this.sfxBus.gain.value = SFX_VOL * this.sfxVolume;
     this.sfxBus.connect(this.master);
     this.musicBus = this.ctx.createGain();
-    this.musicBus.gain.value = 1;
+    this.musicBus.gain.value = this.musicVolume;
     this.musicBus.connect(this.master);
     // Warm the SFX cache so the first battle sounds have no fetch latency.
     for (const name of ['click', 'card', 'hit', 'block', 'hurt', 'node'] as const) {
@@ -230,6 +261,15 @@ class SoundManager {
     this.musicSeq++;
     this.fadeOutCurrent();
   }
+}
+
+function clamp01(v: number): number {
+  return Math.min(1, Math.max(0, Number.isFinite(v) ? v : 1));
+}
+
+function readVolume(key: string): number {
+  const raw = localStorage.getItem(key);
+  return raw === null ? 1 : clamp01(Number(raw));
 }
 
 export const sound = new SoundManager();
