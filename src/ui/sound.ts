@@ -125,7 +125,8 @@ class SoundManager {
     if (cached) return cached;
     const promise = (async () => {
       try {
-        const res = await fetch(`/audio/${path}.mp3`);
+        // BASE_URL keeps audio working under a sub-path deploy (GitHub Pages).
+        const res = await fetch(`${import.meta.env.BASE_URL}audio/${path}.mp3`);
         if (!res.ok) return null;
         const data = await res.arrayBuffer();
         return await this.ctx!.decodeAudioData(data);

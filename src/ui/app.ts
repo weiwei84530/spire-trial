@@ -36,7 +36,8 @@ function artUrl(
   dir: 'cards' | 'enemies' | 'relics' | 'potions' | 'bg' | 'icons' | 'events' | 'frames',
   id: string
 ): string {
-  return `/art/${dir}/${id}.webp`;
+  // BASE_URL keeps assets working under a sub-path deploy (GitHub Pages).
+  return `${import.meta.env.BASE_URL}art/${dir}/${id}.webp`;
 }
 
 /** Small inline icon img. */

@@ -41,13 +41,13 @@ button:hover:not(:disabled) { filter: brightness(1.12); }
 body[data-phase='title'] {
   background:
     linear-gradient(rgba(16, 17, 22, 0.25), rgba(16, 17, 22, 0.5) 60%, rgba(16, 17, 22, 0.85)),
-    url('/art/bg/title.webp') center / cover fixed no-repeat var(--bg);
+    url('../art/bg/title.webp') center / cover fixed no-repeat var(--bg);
 }
 body[data-phase='battle'],
 body[data-phase='reward'] {
   background:
     linear-gradient(rgba(16, 17, 22, 0.5), rgba(16, 17, 22, 0.82) 75%),
-    url('/art/bg/battle.webp') center top / cover fixed no-repeat var(--bg);
+    url('../art/bg/battle.webp') center top / cover fixed no-repeat var(--bg);
 }
 body[data-phase='map'],
 body[data-phase='actTransition'],
@@ -56,17 +56,17 @@ body[data-phase='victory'],
 body[data-phase='defeat'] {
   background:
     linear-gradient(rgba(16, 17, 22, 0.72), rgba(16, 17, 22, 0.88)),
-    url('/art/bg/map.webp') center / cover fixed no-repeat var(--bg);
+    url('../art/bg/map.webp') center / cover fixed no-repeat var(--bg);
 }
 body[data-phase='rest'] {
   background:
     linear-gradient(rgba(16, 17, 22, 0.55), rgba(16, 17, 22, 0.85)),
-    url('/art/bg/rest.webp') center / cover fixed no-repeat var(--bg);
+    url('../art/bg/rest.webp') center / cover fixed no-repeat var(--bg);
 }
 body[data-phase='shop'] {
   background:
     linear-gradient(rgba(16, 17, 22, 0.6), rgba(16, 17, 22, 0.86)),
-    url('/art/bg/shop.webp') center / cover fixed no-repeat var(--bg);
+    url('../art/bg/shop.webp') center / cover fixed no-repeat var(--bg);
 }
 
 /* --- Screen transition & particles --- */
@@ -180,7 +180,7 @@ body[data-phase='shop'] {
 .card.dimmed { opacity: 0.4; cursor: default; }
 
 .primary-btn {
-  background: url('/art/frames/btn_stone.webp') center / 100% 100% no-repeat;
+  background: url('../art/frames/btn_stone.webp') center / 100% 100% no-repeat;
   border: none;
   border-radius: 10px;
   color: #ffe9ad;
@@ -577,7 +577,7 @@ body[data-phase='shop'] {
 
 .end-turn {
   margin-left: auto;
-  background: url('/art/frames/btn_stone.webp') center / 100% 100% no-repeat;
+  background: url('../art/frames/btn_stone.webp') center / 100% 100% no-repeat;
   color: #ffe9ad;
   border: none;
   border-radius: 10px;
