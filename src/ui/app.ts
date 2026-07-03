@@ -132,6 +132,7 @@ export class App {
          <button class="ghost-btn" data-abandon>放棄存檔，重新開始</button>`
       : '<button class="primary-btn" data-start>開始冒險</button>';
     document.body.dataset.phase = 'title';
+    sound.setPhase('title');
     this.root.innerHTML = `
       <div class="game">
         <div class="dialog-screen center title-screen screen-enter">
@@ -183,8 +184,8 @@ export class App {
     if (battle && ended) this.run.resolveBattle();
     this.render();
     if (before && !ended) this.playBattleFx(before);
-    if (ended === 'victory') sound.play('victory');
-    if (ended === 'defeat') sound.play('defeat');
+    // Run-ending victory/defeat is carried by the music stinger instead.
+    if (ended === 'victory' && this.run.phase !== 'victory') sound.play('victory');
   }
 
   private snapshotBattle(): BattleSnapshot | null {
@@ -324,8 +325,7 @@ export class App {
   private afterPotion(before: BattleSnapshot | null): void {
     this.render();
     if (this.run.phase === 'battle' && before) this.playBattleFx(before);
-    else if (this.run.phase === 'defeat') sound.play('defeat');
-    else if (this.run.phase !== 'battle') sound.play('victory');
+    else if (this.run.phase === 'reward' || this.run.phase === 'actTransition') sound.play('victory');
   }
 
   private onPotionClick(index: number): void {
@@ -353,6 +353,15 @@ export class App {
     const before = this.snapshotBattle();
     battle.endTurn();
     this.battleActionDone(before);
+    // A survived enemy turn ends with the next hand being dealt.
+    if (this.run.phase === 'battle') sound.play('draw');
+  }
+
+  /** Whether the node being played right now is the act boss. */
+  private isBossNode(): boolean {
+    const id = this.run.currentNodeId;
+    if (!id) return false;
+    return findNode(this.run.map.rows, id).kind === 'boss';
   }
 
   // --- rendering ---
@@ -388,10 +397,13 @@ export class App {
     }
     // Per-phase full-bleed background image, applied at the body level.
     document.body.dataset.phase = this.run.phase;
+    const bossBattle = this.run.phase === 'battle' && this.isBossNode();
+    sound.setPhase(this.run.phase, bossBattle);
     this.root.innerHTML = `<div class="game">${this.topBarHtml()}${screen}</div>`;
     // Slide-and-fade the screen in whenever the run phase changes.
     if (this.run.phase !== this.lastPhase) {
       this.root.querySelector('.game > :nth-child(2)')?.classList.add('screen-enter');
+      if (bossBattle && this.lastPhase !== 'battle') sound.play('boss');
       this.lastPhase = this.run.phase;
     }
     this.bind();
@@ -425,7 +437,7 @@ export class App {
         <span class="chip-group">${relics}</span>
         <span class="chip-group">${potions}</span>
         <span class="top-bar-right">
-          <span class="mute-chip" data-mute title="音效開關">${iconHtml(sound.muted ? 'ui_sound_off' : 'ui_sound_on')}</span>
+          <span class="mute-chip" data-mute title="音效／音樂開關">${iconHtml(sound.muted ? 'ui_sound_off' : 'ui_sound_on')}</span>
           <span class="stat">${iconHtml('ui_floor', 'chip-icon', '樓層')} 第 ${this.run.act} 幕・${floor}/${this.run.map.rows.length}</span>
         </span>
       </div>`;
@@ -794,7 +806,7 @@ export class App {
       });
     };
     on('[data-node]', (el) => {
-      sound.play('click');
+      sound.play('node');
       this.onNodeClick(el.dataset.node!);
     });
     on('[data-mute]', () => {
@@ -813,10 +825,12 @@ export class App {
       this.render();
     });
     on('[data-rest-heal]', () => {
+      sound.play('heal');
       this.run.restHeal();
       this.render();
     });
     on('[data-upgrade]', (el) => {
+      sound.play('upgrade');
       this.run.restUpgrade(Number(el.dataset.upgrade));
       this.render();
     });
@@ -830,14 +844,17 @@ export class App {
       this.render();
     });
     on('[data-buy-card]', (el) => {
+      sound.play('gold');
       this.run.buyCard(Number(el.dataset.buyCard));
       this.render();
     });
     on('[data-buy-relic]', (el) => {
+      sound.play('gold');
       this.run.buyRelic(Number(el.dataset.buyRelic));
       this.render();
     });
     on('[data-buy-potion]', (el) => {
+      sound.play('gold');
       this.run.buyPotion(Number(el.dataset.buyPotion));
       this.render();
     });
