@@ -433,6 +433,14 @@ export class Battle {
           this.log(`${this.nameOf(source)} heals ${effect.amount}`);
           break;
         }
+        case 'healPercent': {
+          const amount = Math.floor((source.maxHp * effect.percent) / 100);
+          const healed = Math.min(source.maxHp - source.hp, amount);
+          source.hp += healed;
+          this.emit({ type: 'heal', target: this.refOf(source), amount: healed, hpAfter: source.hp });
+          this.log(`${this.nameOf(source)} heals ${amount}`);
+          break;
+        }
         case 'doubleBlock': {
           const added = source.block;
           source.block *= 2;

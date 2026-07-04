@@ -11,7 +11,8 @@ import { Run, type RunSave } from '../engine/run';
 import type { MapNode, NodeKind } from '../engine/map';
 import type { ActorRef, BattleEvent, CardDef, CardInstance, EnemyState } from '../engine/types';
 import type { IntentPreview } from '../engine/battle';
-import { cardText } from './describe';
+import { calcAttackDamage } from '../engine/statuses';
+import { cardText, type CardTextCtx } from './describe';
 import {
   cardName,
   cardTypeName,
@@ -23,7 +24,9 @@ import {
   locale,
   nodeName,
   potionDesc,
+  potionName,
   relicDesc,
+  relicName,
   setLocale,
   statusDesc,
   statusName,
@@ -32,7 +35,7 @@ import {
 } from './i18n';
 import { preloadAll } from './preload';
 import { sound } from './sound';
-import { clearSave, loadRun, saveRun } from './storage';
+import { clearAllData, clearSave, loadRun, saveRun } from './storage';
 
 /**
  * One presentation "beat" of the event replay: an anchor (who acts) plus the
@@ -98,8 +101,49 @@ const NODE_ICON: Record<NodeKind, string> = {
   boss: 'node_boss',
 };
 
-/** Enemies rendered at a larger scale (bosses and elites). */
-const BIG_ENEMIES = new Set(['boss_maw', 'slime_king', 'the_shadow', 'gremlin_nob', 'giant_head']);
+/**
+ * Presentation-only sprite sizing per enemy (B1/B14): the hero column is
+ * 190px wide with a ~215px sprite, so anything lore-bigger than the hero
+ * (centurion, bosses...) must render visibly larger, small critters smaller.
+ * `w` = column width px, `h` = sprite max-height px,
+ * `fly` = airborne idle (higher bob + detached shadow),
+ * `gnd` = extra px the art's transparent bottom padding needs trimming by.
+ */
+interface EnemyVis {
+  w: number;
+  h: number;
+  fly?: boolean;
+  gnd?: number;
+}
+// `gnd` values come from scanning each sprite's transparent bottom rows
+// (ratio x rendered height), so feet land exactly on the ground shadow.
+const ENEMY_VIS: Record<string, EnemyVis> = {
+  // Act 1
+  jaw_worm: { w: 150, h: 150, gnd: 6 },
+  cultist: { w: 165, h: 210, gnd: 7 },
+  acid_slime: { w: 145, h: 140, gnd: 19 },
+  louse_red: { w: 115, h: 110, gnd: 14 },
+  spike_slime_m: { w: 140, h: 125, gnd: 9 },
+  boss_maw: { w: 280, h: 295, gnd: 21 },
+  // Act 2
+  shelled_parasite: { w: 155, h: 140, gnd: 11 },
+  byrd: { w: 140, h: 150, fly: true, gnd: 20 },
+  chosen: { w: 185, h: 235, fly: true, gnd: 9 },
+  snake_plant: { w: 195, h: 250, gnd: 12 },
+  centurion: { w: 205, h: 255, gnd: 6 },
+  gremlin_nob: { w: 235, h: 280, gnd: 5 },
+  slime_king: { w: 285, h: 300, gnd: 19 },
+  // Act 3
+  darkling: { w: 150, h: 150 },
+  orb_walker: { w: 170, h: 210, gnd: 10 },
+  writhing_mass: { w: 175, h: 180, gnd: 13 },
+  spire_growth: { w: 195, h: 245, gnd: 9 },
+  giant_head: { w: 265, h: 280, gnd: 26 },
+  the_shadow: { w: 245, h: 300, fly: true, gnd: 5 },
+};
+const DEFAULT_VIS: EnemyVis = { w: 150, h: 160 };
+/** Hero sprite: same transparent-bottom trim (7% of ~200px render height). */
+const HERO_GND = 13;
 
 /** Card face background texture per card type. */
 const CARD_FRAME: Record<string, string> = {
@@ -122,7 +166,13 @@ function tipAttr(title: string, body = ''): string {
 }
 
 /** Shared card face used by the hand, rewards, and the campfire deck list. */
-function cardFaceHtml(def: CardDef, extraClass = '', dataAttr = '', styleExtra = ''): string {
+function cardFaceHtml(
+  def: CardDef,
+  extraClass = '',
+  dataAttr = '',
+  styleExtra = '',
+  ctx?: CardTextCtx,
+): string {
   const cost = def.cost === 'x' ? 'X' : String(def.cost);
   const upgraded = def.name.endsWith('+') ? 'upgraded' : '';
   return `
@@ -134,7 +184,7 @@ function cardFaceHtml(def: CardDef, extraClass = '', dataAttr = '', styleExtra =
         <div class="card-type">${cardTypeName(def.type)}</div>
       </div>
       <div class="card-art"><img src="${artUrl('cards', def.id)}" alt="" draggable="false"></div>
-      <div class="card-text">${cardText(def)}</div>
+      <div class="card-text">${cardText(def, ctx)}</div>
     </div>`;
 }
 
@@ -157,8 +207,10 @@ export class App {
   private onTitle = true;
   private settingsOpen = false;
   private pauseOpen = false;
-  /** Restart in the pause menu needs a second confirming click. */
-  private restartArmed = false;
+  /** Restart-run confirmation dialog visibility (pause menu). */
+  private restartConfirm = false;
+  /** Clear-all-data confirmation dialog visibility (settings menu). */
+  private clearDataConfirm = false;
   /** Cosmetic enemy-turn sequence in progress: input locked, hand hidden. */
   private enemyPhase = false;
   /** One-shot turn banner text, rendered once then cleared. */
@@ -181,6 +233,8 @@ export class App {
   private readonly cheatDefaults = { oneHitKill: false, infiniteGold: false, infiniteHp: false };
   /** Campfire: deck index awaiting upgrade confirmation in the preview overlay. */
   private upgradePreview: number | null = null;
+  /** Enemy index under the cursor; hand numbers preview damage against it (B7). */
+  private hoverEnemyIdx: number | null = null;
   private readonly root: HTMLElement;
 
   constructor(root: HTMLElement) {
@@ -253,6 +307,7 @@ export class App {
   /** Title screen; doubles as the resume prompt when a save exists. */
   private renderTitle(): void {
     this.onTitle = true;
+    window.scrollTo(0, 0);
     const save = this.pendingResume;
     const saveInfo = save
       ? `<p class="save-info">${t('saveInfo', save.act, save.visited.length, save.map.rows.length, save.hp, save.maxHp, save.gold, save.deck.length)}</p>`
@@ -281,6 +336,7 @@ export class App {
         ${this.settingsOpen ? this.settingsOverlayHtml() : ''}
         ${this.cheatOpen ? this.cheatOverlayHtml() : ''}
         ${this.abandonConfirm ? this.abandonOverlayHtml() : ''}
+        ${this.clearDataConfirm ? this.clearDataOverlayHtml() : ''}
       </div>`;
     this.root.querySelector('[data-start]')?.addEventListener('click', () => {
       sound.play('click');
@@ -361,7 +417,8 @@ export class App {
     this.pendingResume = null;
     this.pauseOpen = false;
     this.settingsOpen = false;
-    this.restartArmed = false;
+    this.restartConfirm = false;
+    this.clearDataConfirm = false;
     this.enemyPhase = false;
     this.turnBanner = null;
     this.playLock = false;
@@ -542,6 +599,16 @@ export class App {
       : (battle.state.enemies[ref.enemy]?.block ?? 0);
   }
 
+  /**
+   * Live HP for the top bar: mid-battle the battle state is the truth
+   * (run.hp only syncs on battle resolve), elsewhere the run state (B12).
+   */
+  private hudHp(): number {
+    return this.run.phase === 'battle' && this.run.battle
+      ? this.run.battle.state.player.hp
+      : this.run.hp;
+  }
+
   /** Sets an actor's HP bar and block chip to absolute values from an event. */
   private patchHp(el: Element, ref: ActorRef, hp: number, block: number): void {
     const battle = this.run.battle;
@@ -552,6 +619,11 @@ export class App {
     if (fill) fill.style.width = `${Math.max(0, (hp / maxHp) * 100)}%`;
     const text = el.querySelector('.hp-text');
     if (text) text.textContent = `${hp}/${maxHp}`;
+    // Keep the top-bar HP in lockstep with the hero's battle HP (B12).
+    if (ref === 'player') {
+      const hud = this.root.querySelector('.top-bar .hp-num');
+      if (hud) hud.textContent = `${hp}/${maxHp}`;
+    }
     this.patchBlock(el, block);
   }
 
@@ -737,10 +809,20 @@ export class App {
   }
 
   private onPotionClick(index: number): void {
-    if (this.run.phase !== 'battle' || this.enemyPhase || this.playLock || this.replaying) return;
-    const battle = this.run.battle!;
     const id = this.run.potions[index];
     if (!id) return;
+    // Outside battle: self-contained potions (healing) can be drunk anywhere (B13).
+    if (this.run.phase !== 'battle') {
+      const def = getPotionDef(id);
+      if (!def.usableOutsideBattle) return;
+      if (this.run.phase === 'victory' || this.run.phase === 'defeat') return;
+      sound.play('potion');
+      this.run.usePotion(index);
+      this.render();
+      return;
+    }
+    if (this.enemyPhase || this.playLock || this.replaying) return;
+    const battle = this.run.battle!;
     if (getPotionDef(id).target === 'enemy') {
       // Toggle potion targeting mode (cancels card selection).
       this.selected = null;
@@ -825,11 +907,14 @@ export class App {
     document.body.dataset.phase = this.run.phase;
     const bossBattle = this.run.phase === 'battle' && this.isBossNode();
     sound.setPhase(this.run.phase, bossBattle);
-    const overlays = `${this.deckOpen ? this.deckOverlayHtml() : ''}${this.pauseOpen ? this.pauseOverlayHtml() : ''}${this.settingsOpen ? this.settingsOverlayHtml() : ''}${this.cheatOpen ? this.cheatOverlayHtml() : ''}${this.upgradePreview !== null ? this.upgradeOverlayHtml() : ''}`;
+    const overlays = `${this.deckOpen ? this.deckOverlayHtml() : ''}${this.pauseOpen ? this.pauseOverlayHtml() : ''}${this.settingsOpen ? this.settingsOverlayHtml() : ''}${this.cheatOpen ? this.cheatOverlayHtml() : ''}${this.upgradePreview !== null ? this.upgradeOverlayHtml() : ''}${this.restartConfirm ? this.restartOverlayHtml() : ''}${this.clearDataConfirm ? this.clearDataOverlayHtml() : ''}`;
     this.root.innerHTML = `<div class="game">${this.topBarHtml()}${screen}${overlays}</div>`;
     this.turnBanner = null; // one-shot: the banner animates out and never re-renders
     // Slide-and-fade the screen in whenever the run phase changes.
     if (this.run.phase !== this.lastPhase) {
+      // A tall battle (big sprites, wide buff rows) can leave the page scrolled;
+      // without this the next screen's top bar sits above the viewport (C3).
+      window.scrollTo(0, 0);
       this.root.querySelector('.game > :nth-child(2)')?.classList.add('screen-enter');
       if (bossBattle && this.lastPhase !== 'battle') sound.play('boss');
       this.lastPhase = this.run.phase;
@@ -846,29 +931,32 @@ export class App {
     const relics = this.run.relics
       .map((id) => {
         const def = getRelicDef(id);
-        return `<span class="relic-chip" ${tipAttr(def.name, relicDesc(id, def.desc))}><img class="chip-icon" src="${artUrl('relics', id)}" alt="${def.name}"></span>`;
+        const name = relicName(id, def.name);
+        return `<span class="relic-chip" ${tipAttr(name, relicDesc(id, def.desc))}><img class="chip-icon" src="${artUrl('relics', id)}" alt="${name}"></span>`;
       })
       .join('');
     const inBattle = this.run.phase === 'battle';
+    const runOver = this.run.phase === 'victory' || this.run.phase === 'defeat';
     const potions = this.run.potions
       .map((id, i) => {
         const def = getPotionDef(id);
-        const cls = `potion-chip ${inBattle ? 'usable' : ''} ${this.potionSelected === i ? 'selected' : ''}`;
-        const body = `${potionDesc(id, def.desc)}${inBattle ? t('clickToUse') : ''}`;
-        return `<span class="${cls}" data-potion="${i}" ${tipAttr(def.name, body)}><img class="chip-icon" src="${artUrl('potions', id)}" alt="${def.name}"></span>`;
+        const name = potionName(id, def.name);
+        const usable = inBattle || (!runOver && !!def.usableOutsideBattle);
+        const cls = `potion-chip ${usable ? 'usable' : ''} ${this.potionSelected === i ? 'selected' : ''}`;
+        const body = `${potionDesc(id, def.desc)}${usable ? t('clickToUse') : ''}`;
+        return `<span class="${cls}" data-potion="${i}" ${tipAttr(name, body)}><img class="chip-icon" src="${artUrl('potions', id)}" alt="${name}"></span>`;
       })
       .join('');
     // Two rows like the original: stats strip on top, relics on their own row.
     return `
       <div class="top-bar">
         <div class="top-bar-main">
-          <span class="stat hp-stat">${iconHtml('ui_hp', 'chip-icon', t('hp'))} ${this.run.hp}/${this.run.maxHp}</span>
+          <span class="stat hp-stat">${iconHtml('ui_hp', 'chip-icon', t('hp'))} <span class="hp-num">${this.hudHp()}/${this.run.maxHp}</span></span>
           <span class="stat gold-stat">${iconHtml('ui_gold', 'chip-icon', t('gold'))} ${this.run.gold}</span>
           <span class="chip-group">${potions}</span>
           <span class="top-bar-center">${iconHtml('ui_floor', 'chip-icon', t('floor'))} ${t('actFloor', this.run.act, floor, this.run.map.rows.length)}</span>
           <span class="top-bar-right">
             <span class="stat deck-chip" data-deck-view title="${t('deck')}">${iconHtml('ui_deck', 'chip-icon', t('deck'))} ${this.run.deck.length}</span>
-            <span class="mute-chip" data-mute title="${t('soundToggle')}">${iconHtml(sound.muted ? 'ui_sound_off' : 'ui_sound_on')}</span>
             <span class="mute-chip" data-pause title="${t('pauseTitle')}">${iconHtml('ui_menu')}</span>
           </span>
         </div>
@@ -902,11 +990,35 @@ export class App {
           <h2>${t('paused')}</h2>
           <button class="primary-btn" data-resume-game>${t('resumeGame')}</button>
           <button class="ghost-btn" data-open-settings>${t('settings')}</button>
-          <button class="ghost-btn" data-back-title>${t('backToTitle')}</button>
           <button class="ghost-btn" data-open-cheats>${t('cheatMenu')}</button>
-          <button class="ghost-btn ${this.restartArmed ? 'danger' : ''}" data-restart>
-            ${this.restartArmed ? t('restartConfirm') : t('restartRun')}
-          </button>
+          <button class="ghost-btn" data-restart>${t('restartRun')}</button>
+          <button class="ghost-btn" data-back-title>${t('backToTitle')}</button>
+        </div>
+      </div>`;
+  }
+
+  /** Restart-run needs the same explicit popup as abandoning a save (A7). */
+  private restartOverlayHtml(): string {
+    return `
+      <div class="overlay">
+        <div class="overlay-box menu-box">
+          <h2>${t('confirmRestartTitle')}</h2>
+          <p class="confirm-text">${t('confirmRestartText')}</p>
+          <button class="ghost-btn danger" data-confirm-restart>${t('confirmRestart')}</button>
+          <button class="primary-btn" data-cancel-restart>${t('cancel')}</button>
+        </div>
+      </div>`;
+  }
+
+  /** Wipe-everything confirmation, reachable from the settings menu (A3). */
+  private clearDataOverlayHtml(): string {
+    return `
+      <div class="overlay">
+        <div class="overlay-box menu-box">
+          <h2>${t('confirmClearTitle')}</h2>
+          <p class="confirm-text">${t('confirmClearText')}</p>
+          <button class="ghost-btn danger" data-confirm-clear-data>${t('confirmClear')}</button>
+          <button class="primary-btn" data-cancel-clear-data>${t('cancel')}</button>
         </div>
       </div>`;
   }
@@ -936,6 +1048,7 @@ export class App {
               ${iconHtml(sound.muted ? 'ui_sound_off' : 'ui_sound_on', 'inline-icon')}
             </button>
           </div>
+          <button class="ghost-btn danger" data-clear-data>${t('clearData')}</button>
           <button class="primary-btn" data-close-settings>${t('close')}</button>
         </div>
       </div>`;
@@ -951,13 +1064,13 @@ export class App {
     on('[data-pause]', () => {
       sound.play('click');
       this.pauseOpen = true;
-      this.restartArmed = false;
+      this.restartConfirm = false;
       this.rerender();
     });
     on('[data-resume-game]', () => {
       sound.play('click');
       this.pauseOpen = false;
-      this.restartArmed = false;
+      this.restartConfirm = false;
       this.rerender();
     });
     on('[data-open-settings]', () => {
@@ -975,18 +1088,38 @@ export class App {
       this.cancelReplay();
       this.pauseOpen = false;
       this.settingsOpen = false;
-      this.restartArmed = false;
+      this.restartConfirm = false;
       this.pendingResume = loadRun();
       this.renderTitle();
     });
     on('[data-restart]', () => {
       sound.play('click');
-      if (!this.restartArmed) {
-        this.restartArmed = true;
-        this.rerender();
-        return;
-      }
+      this.restartConfirm = true;
+      this.rerender();
+    });
+    on('[data-confirm-restart]', () => {
+      sound.play('click');
+      this.restartConfirm = false;
       this.newRun();
+    });
+    on('[data-cancel-restart]', () => {
+      sound.play('click');
+      this.restartConfirm = false;
+      this.rerender();
+    });
+    on('[data-clear-data]', () => {
+      sound.play('click');
+      this.clearDataConfirm = true;
+      this.rerender();
+    });
+    on('[data-confirm-clear-data]', () => {
+      clearAllData();
+      window.location.reload();
+    });
+    on('[data-cancel-clear-data]', () => {
+      sound.play('click');
+      this.clearDataConfirm = false;
+      this.rerender();
     });
     on('[data-lang]', (el) => {
       sound.play('click');
@@ -1051,10 +1184,11 @@ export class App {
     const choices = reward.relicChoices
       .map((id) => {
         const def = getRelicDef(id);
+        const name = relicName(id, def.name);
         return `
           <button class="relic-choice" data-pick-relic="${id}">
-            <img class="relic-choice-img" src="${artUrl('relics', id)}" alt="${def.name}">
-            <span class="relic-choice-name">${def.name}</span>
+            <img class="relic-choice-img" src="${artUrl('relics', id)}" alt="${name}">
+            <span class="relic-choice-name">${name}</span>
             <span class="relic-choice-desc">${relicDesc(id, def.desc)}</span>
           </button>`;
       })
@@ -1152,7 +1286,7 @@ export class App {
     return `
       <div class="battle ${this.enemyPhase ? 'enemy-phase' : ''}">
         <div class="arena" data-enemy-count="${enemies.length}">
-          <div class="hero">
+          <div class="hero" style="--gnd:${HERO_GND}px">
             <div class="hero-art"><img src="${artUrl('bg', 'hero')}" alt="${t('you')}" draggable="false"></div>
             <div class="actor-name">${t('you')}</div>
             ${this.hpBarHtml(player.hp, player.maxHp, player.block)}
@@ -1178,15 +1312,23 @@ export class App {
       </div>`;
   }
 
-  /** Warns when ending the turn would waste energy on still-playable cards. */
+  /**
+   * Fixed-size two-line button: line 1 is always "End turn", line 2 warns
+   * about wasted energy without ever changing the button's footprint (B17).
+   */
   private endTurnButtonHtml(): string {
-    if (this.enemyPhase) return `<button class="end-turn" disabled>${t('enemyTurn')}</button>`;
+    if (this.enemyPhase) {
+      return `<button class="end-turn" disabled><span class="end-turn-label">${t('enemyTurn')}</span></button>`;
+    }
     const battle = this.run.battle!;
     const player = battle.state.player;
     const wouldWaste =
       player.energy > 0 && player.hand.some((_, i) => this.isHandCardPlayable(i));
-    if (!wouldWaste) return `<button class="end-turn">${t('endTurn')}</button>`;
-    return `<button class="end-turn warn" title="${t('playableLeft')}">${t('endTurnEnergy', player.energy)}</button>`;
+    const sub = wouldWaste ? `<span class="end-turn-sub">${t('energyLeft', player.energy)}</span>` : '';
+    return `
+      <button class="end-turn ${wouldWaste ? 'warn' : ''}" ${wouldWaste ? `title="${t('playableLeft')}"` : ''}>
+        <span class="end-turn-label">${t('endTurn')}</span>${sub}
+      </button>`;
   }
 
   private pileOverlayHtml(): string {
@@ -1213,18 +1355,39 @@ export class App {
     const battle = this.run.battle!;
     // The intent row is always present so death never shifts the column height.
     const preview = dead ? null : battle.intentOf(enemy);
-    const intent = `<div class="intent" ${preview ? this.intentTip(preview) : ''}>${preview ? this.intentHtml(preview) : ''}</div>`;
+    const intent = `<div class="intent" ${preview ? this.intentTip(preview) : ''}>${preview ? this.intentHtml(preview, enemy) : ''}</div>`;
     const targetable = (this.selected !== null || this.potionSelected !== null) && !dead;
-    const big = BIG_ENEMIES.has(enemy.defId) ? 'big' : '';
+    const vis = ENEMY_VIS[enemy.defId] ?? DEFAULT_VIS;
+    const visStyle = `--ew:${vis.w}px;--eh:${vis.h}px;${vis.gnd ? `--gnd:${vis.gnd}px;` : ''}`;
     const name = enemyName(enemy.defId, enemy.name);
     return `
-      <div class="enemy ${big} ${dead ? 'dead' : ''} ${targetable ? 'targetable' : ''}" data-enemy="${index}">
+      <div class="enemy ${vis.fly ? 'flying' : ''} ${dead ? 'dead' : ''} ${targetable ? 'targetable' : ''}"
+           data-enemy="${index}" style="${visStyle}">
         ${intent}
         <div class="enemy-art"><img src="${artUrl('enemies', enemy.defId)}" alt="${name}" draggable="false"></div>
         <div class="actor-name">${name}</div>
-        ${this.hpBarHtml(enemy.hp, enemy.maxHp, enemy.block)}
+        ${this.hpBarHtml(enemy.hp, enemy.maxHp, enemy.block, this.cardPreviewDamage(enemy))}
         <div class="statuses">${this.statusesHtml(enemy.statuses)}</div>
       </div>`;
+  }
+
+  /**
+   * Total damage the selected attack card would deal to this enemy, for the
+   * HP-bar pre-deduction highlight (B16). 0 when nothing is being aimed.
+   */
+  private cardPreviewDamage(enemy: EnemyState): number {
+    const battle = this.run.battle;
+    if (!battle || this.selected === null || enemy.hp <= 0) return 0;
+    const card = battle.state.player.hand[this.selected];
+    if (!card) return 0;
+    const def = resolveCard(card);
+    let total = 0;
+    for (const effect of def.effects) {
+      if (effect.kind !== 'damage') continue;
+      const times = effect.times === 'x' ? battle.state.player.energy : (effect.times ?? 1);
+      total += calcAttackDamage(effect.amount, battle.state.player, enemy) * times;
+    }
+    return total;
   }
 
   /** Instant-tooltip attribute explaining what the enemy is about to do. */
@@ -1248,12 +1411,16 @@ export class App {
   }
 
   /** Icon + short text version of the enemy intent line. */
-  private intentHtml(intent: IntentPreview): string {
+  private intentHtml(intent: IntentPreview, enemy: EnemyState): string {
     const icon = iconHtml(`intent_${intent.kind === 'defend' ? 'defend' : intent.kind}`, 'intent-icon');
     switch (intent.kind) {
       case 'attack': {
         const hits = intent.hits && intent.hits > 1 ? `×${intent.hits}` : '';
-        return `${icon} ${intent.damage}${hits}`;
+        // Buffed/weakened attack numbers change color so the modifier reads at a glance (B15).
+        const buffed = (enemy.statuses['strength'] ?? 0) > 0;
+        const weakened = (enemy.statuses['weak'] ?? 0) > 0;
+        const cls = weakened ? 'nerfed' : buffed ? 'buffed' : '';
+        return `${icon} <span class="${cls}">${intent.damage}</span>${hits}`;
       }
       case 'defend':
         // Shield icon + the block number, like the original (not a generic label).
@@ -1289,15 +1456,49 @@ export class App {
     const overlap = total > 6 ? -16 - (total - 6) * 8 : -16;
     const deal = dealOrder >= 0 ? `--deal:${dealOrder * 55}ms;` : '';
     const style = `--rot:${rot.toFixed(2)}deg;--lift:${lift.toFixed(1)}px;${deal}margin:0 ${overlap}px;`;
-    return cardFaceHtml(def, `in-hand ${cls}`, `data-card="${index}"`, style);
+    return cardFaceHtml(def, `in-hand ${cls}`, `data-card="${index}"`, style, this.handCardCtx());
   }
 
-  private hpBarHtml(hp: number, maxHp: number, block: number): string {
+  /** Battle context for live card numbers: player buffs + the hovered target. */
+  private handCardCtx(): CardTextCtx | undefined {
+    const battle = this.run.battle;
+    if (!battle) return undefined;
+    const hovered =
+      this.hoverEnemyIdx !== null ? battle.state.enemies[this.hoverEnemyIdx] : undefined;
+    return {
+      attacker: battle.state.player,
+      defender: hovered && hovered.hp > 0 ? hovered : null,
+    };
+  }
+
+  /** Re-renders only the hand in place (hover previews must not rebuild the DOM under the cursor). */
+  private refreshHand(): void {
+    if (this.run.phase !== 'battle' || !this.run.battle || this.enemyPhase || this.replaying) return;
+    const hand = this.root.querySelector<HTMLElement>('.hand');
+    if (!hand) return;
+    const player = this.run.battle.state.player;
+    hand.innerHTML = player.hand
+      .map((c, i) => this.handCardHtml(c, i, player.hand.length, -1))
+      .join('');
+    hand.querySelectorAll<HTMLElement>('[data-card]').forEach((el) => {
+      el.addEventListener('click', () => this.onCardClick(Number(el.dataset.card)));
+    });
+  }
+
+  private hpBarHtml(hp: number, maxHp: number, block: number, previewDmg = 0): string {
     const pct = Math.max(0, (hp / maxHp) * 100);
     const blockChip = block > 0 ? `<span class="block-chip">${block}</span>` : '';
+    // Pre-deduction highlight: the chunk that would be lost if the aimed card lands.
+    let preview = '';
+    if (previewDmg > 0) {
+      const lost = Math.min(hp, previewDmg);
+      const left = Math.max(0, ((hp - lost) / maxHp) * 100);
+      const width = (lost / maxHp) * 100;
+      preview = `<div class="hp-preview" style="left:${left}%;width:${width}%"></div>`;
+    }
     return `
       <div class="hp-bar">
-        <div class="hp-fill" style="width:${pct}%"></div>
+        <div class="hp-fill" style="width:${pct}%"></div>${preview}
         <span class="hp-text">${hp}/${maxHp}</span>${blockChip}
       </div>`;
   }
@@ -1323,11 +1524,11 @@ export class App {
     const extras: string[] = [`${iconHtml('ui_gold', 'inline-icon')} ${t('goldReward', reward.gold)}`];
     if (reward.relic) {
       const def = getRelicDef(reward.relic);
-      extras.push(`<img class="inline-icon" src="${artUrl('relics', reward.relic)}" alt=""> ${def.name} — ${relicDesc(reward.relic, def.desc)}`);
+      extras.push(`<img class="inline-icon" src="${artUrl('relics', reward.relic)}" alt=""> ${relicName(reward.relic, def.name)} — ${relicDesc(reward.relic, def.desc)}`);
     }
     if (reward.potion) {
       const def = getPotionDef(reward.potion);
-      extras.push(`<img class="inline-icon" src="${artUrl('potions', reward.potion)}" alt=""> ${def.name} — ${potionDesc(reward.potion, def.desc)}`);
+      extras.push(`<img class="inline-icon" src="${artUrl('potions', reward.potion)}" alt=""> ${potionName(reward.potion, def.name)} — ${potionDesc(reward.potion, def.desc)}`);
     }
     return `
       <div class="dialog-screen">
@@ -1349,6 +1550,7 @@ export class App {
           <h2>${eventTitle(event.id, event.title)}</h2>
           ${art}
           <p class="event-text">${result}</p>
+          ${this.eventOutcomeHtml()}
           <button class="primary-btn" data-leave-event>${t('continue')}</button>
         </div>`;
     }
@@ -1365,6 +1567,28 @@ export class App {
         <p class="event-text">${eventText(event.id, event.text)}</p>
         <div class="choice-list">${choices}</div>
       </div>`;
+  }
+
+  /** Concrete gains/losses of the chosen event option, e.g. "Lost 8 HP" (A13). */
+  private eventOutcomeHtml(): string {
+    const o = this.run.eventOutcome;
+    if (!o) return '';
+    const parts: string[] = [];
+    if (o.hp < 0) parts.push(`<span class="loss">${t('outcomeHpLoss', -o.hp)}</span>`);
+    if (o.hp > 0) parts.push(`<span class="gain">${t('outcomeHpGain', o.hp)}</span>`);
+    if (o.gold > 0) parts.push(`<span class="gain">${t('outcomeGoldGain', o.gold)}</span>`);
+    if (o.gold < 0) parts.push(`<span class="loss">${t('outcomeGoldLoss', -o.gold)}</span>`);
+    if (o.relic) {
+      parts.push(`<span class="gain">${t('outcomeRelic', relicName(o.relic, getRelicDef(o.relic).name))}</span>`);
+    }
+    if (o.upgradedCard) {
+      parts.push(`<span class="gain">${t('outcomeUpgrade', `${cardName(getCardDef(o.upgradedCard))}+`)}</span>`);
+    }
+    if (o.potion) {
+      parts.push(`<span class="gain">${t('outcomePotion', potionName(o.potion, getPotionDef(o.potion).name))}</span>`);
+    }
+    if (parts.length === 0) return '';
+    return `<p class="event-outcome">${parts.join('<br>')}</p>`;
   }
 
   private shopScreen(): string {
@@ -1387,7 +1611,7 @@ export class App {
         const afford = this.run.canAfford(item.price);
         return `
           <button class="shop-row ${afford ? '' : 'dimmed'}" data-buy-relic="${i}" ${afford ? '' : 'disabled'}>
-            <img class="inline-icon" src="${artUrl('relics', item.id)}" alt=""> ${def.name} — ${relicDesc(item.id, def.desc)} <span class="price-tag">${iconHtml('ui_gold', 'inline-icon')} ${item.price}</span>
+            <img class="inline-icon" src="${artUrl('relics', item.id)}" alt=""> ${relicName(item.id, def.name)} — ${relicDesc(item.id, def.desc)} <span class="price-tag">${iconHtml('ui_gold', 'inline-icon')} ${item.price}</span>
           </button>`;
       })
       .join('');
@@ -1398,7 +1622,7 @@ export class App {
         const afford = this.run.canAfford(item.price) && this.run.potions.length < this.run.maxPotions;
         return `
           <button class="shop-row ${afford ? '' : 'dimmed'}" data-buy-potion="${i}" ${afford ? '' : 'disabled'}>
-            <img class="inline-icon" src="${artUrl('potions', item.id)}" alt=""> ${def.name} — ${potionDesc(item.id, def.desc)} <span class="price-tag">${iconHtml('ui_gold', 'inline-icon')} ${item.price}</span>
+            <img class="inline-icon" src="${artUrl('potions', item.id)}" alt=""> ${potionName(item.id, def.name)} — ${potionDesc(item.id, def.desc)} <span class="price-tag">${iconHtml('ui_gold', 'inline-icon')} ${item.price}</span>
           </button>`;
       })
       .join('');
@@ -1432,7 +1656,7 @@ export class App {
       .join('');
     return `
       <div class="dialog-screen">
-        <h2>${iconHtml('node_rest', 'heading-icon')} ${t('campfire')}</h2>
+        <h2>${iconHtml('node_rest', 'heading-icon rest-icon')} ${t('campfire')}</h2>
         <p>${t('restIntro', heal)}</p>
         <button class="primary-btn" data-rest-heal>${t('restHeal', heal)}</button>
         <h3>${t('restUpgrade')}</h3>
@@ -1474,7 +1698,7 @@ export class App {
       [t('statDealt'), s.damageDealt],
       [t('statTaken'), s.damageTaken],
       [t('statDeck'), t('cardsCount', this.run.deck.length)],
-      [t('statRelics'), this.run.relics.map((id) => getRelicDef(id).name).join(listSep) || t('none')],
+      [t('statRelics'), this.run.relics.map((id) => relicName(id, getRelicDef(id).name)).join(listSep) || t('none')],
       [t('statGold'), this.run.gold],
     ];
     return `
@@ -1498,12 +1722,22 @@ export class App {
       sound.play('node');
       this.onNodeClick(el.dataset.node!);
     });
-    on('[data-mute]', () => {
-      sound.toggle();
-      this.render();
-    });
     on('[data-card]', (el) => this.onCardClick(Number(el.dataset.card)));
     on('[data-enemy]', (el) => this.onEnemyClick(Number(el.dataset.enemy)));
+    // Hovering an enemy re-renders the hand numbers against that target (B7).
+    this.root.querySelectorAll<HTMLElement>('[data-enemy]').forEach((el) => {
+      el.addEventListener('mouseenter', () => {
+        const idx = Number(el.dataset.enemy);
+        if (this.hoverEnemyIdx === idx) return;
+        this.hoverEnemyIdx = idx;
+        this.refreshHand();
+      });
+      el.addEventListener('mouseleave', () => {
+        if (this.hoverEnemyIdx === null) return;
+        this.hoverEnemyIdx = null;
+        this.refreshHand();
+      });
+    });
     on('.end-turn', () => this.onEndTurn());
     on('[data-reward]', (el) => {
       this.run.pickReward(el.dataset.reward!);

@@ -270,7 +270,21 @@ ASSETS.push({
 icon('node_battle', 'two crossed straight swords emblem, steel with gold hilts');
 icon('node_elite', 'a horned demon skull emblem, ember glow in the eye sockets');
 icon('node_rest', 'a small crackling campfire emblem, warm golden flames over dark logs');
-icon('node_event', 'a mysterious glowing lantern emblem wrapped in swirling indigo mist');
+// Deliberate "?" glyph (map event node): custom prompt without the shared
+// no-text clause so the question mark actually gets drawn.
+ASSETS.push({
+  id: 'node_event',
+  dir: 'icons',
+  transparent: true,
+  prompt:
+    'Dark fantasy game illustration, painterly digital art with visible brush strokes, ' +
+    'dramatic rim light, muted palette of deep indigo blue, charcoal grey and ember-gold accents. ' +
+    'A single large ornate golden question mark symbol "?" as a glowing carved rune emblem, ' +
+    'wrapped in faint swirling indigo mist, centered game icon with generous margin, ' +
+    'bold unmistakable silhouette readable at very small sizes. ' +
+    'Only the question mark glyph, no other text, no watermark, no border. ' +
+    'Isolated on a fully transparent background, no shadow.',
+});
 icon('node_shop', 'a plump leather coin pouch emblem with gold coins spilling out');
 icon('node_boss', 'a golden crown resting on a dark skull emblem, ominous red glow');
 
@@ -359,8 +373,9 @@ ASSETS.push({
   size: '1024x1024',
   transparent: true,
   prompt:
-    `${STYLE} A perfectly round glowing golden energy orb, swirling molten core, thin dark metal ring mount, ` +
-    'strong inner light, centered. Isolated on a fully transparent background.',
+    `${STYLE} A perfectly round golden energy orb with a dark smoky obsidian core and a bright ` +
+    'glowing molten-gold rim, thin dark metal ring mount, the centre distinctly darker than the ' +
+    'rim so pale UI numerals stay readable on top, centered. Isolated on a fully transparent background.',
 });
 ASSETS.push({
   id: 'panel_stone',

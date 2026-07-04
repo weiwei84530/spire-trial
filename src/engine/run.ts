@@ -56,6 +56,19 @@ export interface RunSave {
   stats: RunStats;
   /** Adaptive potion drop chance; absent in older saves (defaults to base). */
   potionChance?: number;
+  /** Event ids already encountered (anti-repeat); absent in older saves. */
+  seenEvents?: string[];
+}
+
+/** What actually happened when an event choice resolved (for the result screen). */
+export interface EventOutcome {
+  /** Real HP delta after the 1-HP floor / max-HP cap. */
+  hp: number;
+  gold: number;
+  relic: string | null;
+  /** DefId of the randomly upgraded card, if any. */
+  upgradedCard: string | null;
+  potion: string | null;
 }
 
 interface ActEncounters {
@@ -95,6 +108,8 @@ const ACT_1: ActEncounters = {
 };
 
 const ACT_2: ActEncounters = {
+  // Wiki-parity pass buffed chosen/centurion/shelled_parasite, so the pair
+  // encounters moved deeper and chosen x2 is now elite-only.
   normal: [
     { maxRow: 2, pool: [['shelled_parasite'], ['chosen'], ['byrd', 'byrd'], ['centurion']] },
     {
@@ -103,15 +118,15 @@ const ACT_2: ActEncounters = {
         ['byrd', 'byrd', 'byrd'],
         ['shelled_parasite', 'byrd'],
         ['snake_plant'],
-        ['centurion', 'chosen'],
+        ['centurion', 'byrd'],
       ],
     },
     {
       maxRow: Infinity,
       pool: [
         ['snake_plant', 'byrd'],
-        ['chosen', 'chosen'],
-        ['shelled_parasite', 'centurion'],
+        ['chosen', 'byrd'],
+        ['shelled_parasite', 'byrd'],
       ],
     },
   ],
@@ -134,7 +149,7 @@ const ACT_3: ActEncounters = {
     {
       maxRow: Infinity,
       pool: [
-        ['writhing_mass', 'orb_walker'],
+        ['writhing_mass', 'darkling'],
         ['spire_growth', 'darkling'],
       ],
     },
@@ -203,6 +218,10 @@ export class Run {
   currentEvent: EventDef | null = null;
   /** Result text of the chosen event option, shown before returning to the map. */
   eventResult: string | null = null;
+  /** Actual gains/losses of the chosen event option (null until chosen). */
+  eventOutcome: EventOutcome | null = null;
+  /** Event ids already encountered this run, so events do not repeat back-to-back. */
+  readonly seenEvents: string[] = [];
   shop: ShopStock | null = null;
   /** Adaptive potion drop chance (StS-style pity), reset each act. */
   potionChance = POTION_CHANCE_BASE;
@@ -238,6 +257,7 @@ export class Run {
       this.visited = [...save.visited];
       this.stats = { ...save.stats };
       this.potionChance = save.potionChance ?? POTION_CHANCE_BASE;
+      this.seenEvents = [...(save.seenEvents ?? [])];
       ensureInstanceIdAbove(Math.max(0, ...save.deck.map((c) => c.instanceId)));
       return;
     }
@@ -266,6 +286,7 @@ export class Run {
       potions: [...this.potions],
       stats: { ...this.stats },
       potionChance: this.potionChance,
+      seenEvents: [...this.seenEvents],
     };
   }
 
@@ -290,8 +311,9 @@ export class Run {
         this.phase = 'rest';
         break;
       case 'event':
-        this.currentEvent = this.rng.pick(EVENTS);
+        this.currentEvent = this.pickEvent();
         this.eventResult = null;
+        this.eventOutcome = null;
         this.phase = 'event';
         break;
       case 'shop':
@@ -356,6 +378,14 @@ export class Run {
     this.hp = this.battle.state.player.hp;
     const victoryHeal = this.relics.reduce((sum, id) => sum + (getRelicDef(id).victoryHeal ?? 0), 0);
     this.hp = Math.min(this.maxHp, this.hp + victoryHeal);
+    // Meat on the Bone: conditional heal, checked after the flat victory heals.
+    if (this.hp <= this.maxHp / 2) {
+      const condHeal = this.relics.reduce(
+        (sum, id) => sum + (getRelicDef(id).victoryHealBelowHalf ?? 0),
+        0,
+      );
+      this.hp = Math.min(this.maxHp, this.hp + condHeal);
+    }
 
     const node = getNode(this.map, this.currentNodeId!);
     this.battle = null;
@@ -410,7 +440,13 @@ export class Run {
       this.hp += def.maxHpBonus;
     }
     for (let i = 0; i < (def.upgradeOnPickup ?? 0); i++) {
-      const upgradable = this.deck.map((_, idx) => idx).filter((idx) => this.canUpgrade(idx));
+      const upgradable = this.deck
+        .map((_, idx) => idx)
+        .filter(
+          (idx) =>
+            this.canUpgrade(idx) &&
+            (!def.upgradeOnPickupType || CARDS[this.deck[idx]!.defId]?.type === def.upgradeOnPickupType),
+        );
       if (upgradable.length === 0) break;
       this.deck[this.rng.pick(upgradable)]!.upgraded = true;
     }
@@ -426,12 +462,27 @@ export class Run {
     this.reward.relicChoices = null;
   }
 
-  /** Use a held potion during battle. Enemy-targeted potions need targetIndex. */
+  /**
+   * Use a held potion. In battle everything works as before; outside battle
+   * only potions flagged `usableOutsideBattle` may be drunk, and their heal
+   * effects apply straight to the run's HP (B13).
+   */
   usePotion(potionIndex: number, targetIndex?: number): void {
-    if (this.phase !== 'battle' || !this.battle) throw new Error('Potions are battle-only');
     const id = this.potions[potionIndex];
     if (!id) throw new Error(`No potion at ${potionIndex}`);
     const def = getPotionDef(id);
+    if (this.phase !== 'battle' || !this.battle) {
+      if (!def.usableOutsideBattle) throw new Error(`${id} is battle-only`);
+      if (this.phase === 'victory' || this.phase === 'defeat') throw new Error('The run is over');
+      for (const effect of def.effects) {
+        if (effect.kind === 'heal') this.hp = Math.min(this.maxHp, this.hp + effect.amount);
+        if (effect.kind === 'healPercent') {
+          this.hp = Math.min(this.maxHp, this.hp + Math.floor((this.maxHp * effect.percent) / 100));
+        }
+      }
+      this.potions.splice(potionIndex, 1);
+      return;
+    }
     if (def.target === 'enemy' && targetIndex === undefined) throw new Error(`${id} needs a target`);
     this.battle.usePotion(def.effects, def.target === 'enemy' ? targetIndex : undefined);
     this.potions.splice(potionIndex, 1);
@@ -532,6 +583,23 @@ export class Run {
 
   // --- events ---
 
+  /**
+   * Draws the next event, never repeating one until every event has been
+   * seen; the pool reset still excludes the most recent event so the same
+   * event can never appear twice in a row (A13).
+   */
+  private pickEvent(): EventDef {
+    let pool = EVENTS.filter((e) => !this.seenEvents.includes(e.id));
+    if (pool.length === 0) {
+      const last = this.seenEvents[this.seenEvents.length - 1];
+      this.seenEvents.length = 0;
+      pool = EVENTS.filter((e) => e.id !== last);
+    }
+    const event = this.rng.pick(pool);
+    this.seenEvents.push(event.id);
+    return event;
+  }
+
   canChooseEventOption(choiceIndex: number): boolean {
     const choice = this.currentEvent?.choices[choiceIndex];
     if (!choice) return false;
@@ -543,22 +611,41 @@ export class Run {
     if (this.eventResult !== null) throw new Error('Event already resolved');
     if (!this.canChooseEventOption(choiceIndex)) throw new Error('Cannot afford this choice');
     const choice = this.currentEvent.choices[choiceIndex]!;
+    const outcome: EventOutcome = { hp: 0, gold: 0, relic: null, upgradedCard: null, potion: null };
 
-    if (choice.gold) this.gold += choice.gold;
+    if (choice.gold) {
+      this.gold += choice.gold;
+      outcome.gold = choice.gold;
+    }
     if (choice.hp) {
       // Events never kill: HP loss floors at 1.
+      const before = this.hp;
       this.hp = Math.max(1, Math.min(this.maxHp, this.hp + choice.hp));
+      outcome.hp = this.hp - before;
     }
     if (choice.gainRelic) {
       const relic = this.randomUnownedRelic();
-      if (relic) this.gainRelic(relic);
+      if (relic) {
+        this.gainRelic(relic);
+        outcome.relic = relic;
+      }
     }
     if (choice.gainCard) this.deck.push(makeCard(choice.gainCard));
     if (choice.upgradeRandom) {
       const upgradable = this.deck.map((_, i) => i).filter((i) => this.canUpgrade(i));
-      if (upgradable.length > 0) this.deck[this.rng.pick(upgradable)]!.upgraded = true;
+      if (upgradable.length > 0) {
+        const idx = this.rng.pick(upgradable);
+        this.deck[idx]!.upgraded = true;
+        outcome.upgradedCard = this.deck[idx]!.defId;
+      }
+    }
+    if (choice.gainPotion && this.rng.next() < choice.gainPotion && this.potions.length < this.maxPotions) {
+      const potion = this.rng.pick(POTION_IDS);
+      this.potions.push(potion);
+      outcome.potion = potion;
     }
     this.eventResult = choice.result;
+    this.eventOutcome = outcome;
   }
 
   /** Dismiss the event result text and return to the map. */
@@ -566,6 +653,7 @@ export class Run {
     if (this.phase !== 'event') throw new Error('No event active');
     this.currentEvent = null;
     this.eventResult = null;
+    this.eventOutcome = null;
     this.phase = 'map';
   }
 

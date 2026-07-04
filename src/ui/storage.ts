@@ -30,3 +30,17 @@ export function clearSave(): void {
     // ignore
   }
 }
+
+/** Wipes every key this game owns (save, locale, future settings). */
+export function clearAllData(): void {
+  try {
+    const doomed: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('cardgame')) doomed.push(key);
+    }
+    for (const key of doomed) localStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+}

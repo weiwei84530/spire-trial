@@ -39,17 +39,30 @@ const EVENT_CHANCE = 0.22;
 const SPECIAL_MIN_ROW_RATIO = 0.35; // elites/rests only past ~this fraction of the act
 const NO_CHAIN: readonly NodeKind[] = ['elite', 'shop', 'rest'];
 
+/** Entrances on row 0: always exactly this many distinct columns. */
+export const START_NODE_COUNT = 5;
+
 /**
  * Generates a branching act map with the original game's algorithm, scaled
  * down: several random walks climb the grid one row at a time (steps of -1/0/+1
- * column), edges never cross, the first two walks start on different columns,
- * and every top-row node feeds the single boss node.
+ * column), edges never cross, exactly START_NODE_COUNT distinct entrance
+ * columns exist on row 0, and every top-row node feeds the single boss node
+ * (always the centre column).
  */
 export function generateMap(rng: Rng, opts: MapOptions = {}): GameMap {
   const rowCount = opts.rows ?? 10;
   const colCount = opts.cols ?? 7;
-  const walkCount = opts.walks ?? 6;
   const gridRows = rowCount - 1; // walkable rows; the final row is the boss
+
+  // Pre-pick the entrance columns; extra walks reuse one of them so the
+  // bottom row never grows a sixth entrance (A4).
+  const startCols: number[] = [];
+  const colPool = Array.from({ length: colCount }, (_, i) => i);
+  while (startCols.length < Math.min(START_NODE_COUNT, colCount)) {
+    const idx = rng.int(0, colPool.length - 1);
+    startCols.push(colPool.splice(idx, 1)[0]!);
+  }
+  const walkCount = Math.max(opts.walks ?? 6, startCols.length);
 
   const present: boolean[][] = Array.from({ length: gridRows }, () =>
     Array<boolean>(colCount).fill(false),
@@ -63,14 +76,8 @@ export function generateMap(rng: Rng, opts: MapOptions = {}): GameMap {
   const crosses = (r: number, from: number, to: number) =>
     edges[r]!.some(([a, b]) => (a - from) * (b - to) < 0);
 
-  let firstStart = -1;
   for (let walk = 0; walk < walkCount; walk++) {
-    let col = rng.int(0, colCount - 1);
-    // The first two walks must start on different columns (guarantees a real fork).
-    if (walk === 1) {
-      while (col === firstStart) col = rng.int(0, colCount - 1);
-    }
-    if (walk === 0) firstStart = col;
+    let col = walk < startCols.length ? startCols[walk]! : rng.pick(startCols);
     present[0]![col] = true;
     for (let r = 0; r < gridRows - 1; r++) {
       const candidates = [col - 1, col, col + 1].filter(

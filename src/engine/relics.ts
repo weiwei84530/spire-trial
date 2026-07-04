@@ -14,10 +14,14 @@ export interface RelicDef {
   battleStart?: Effect[];
   /** HP restored after every battle victory. */
   victoryHeal?: number;
+  /** HP restored after a victory only when HP is at or below 50% (Meat on the Bone). */
+  victoryHealBelowHalf?: number;
   /** Max HP gained once when the relic is picked up. */
   maxHpBonus?: number;
   /** Random deck cards upgraded once when the relic is picked up. */
   upgradeOnPickup?: number;
+  /** Restricts upgradeOnPickup to this card type (Whetstone upgrades Attacks). */
+  upgradeOnPickupType?: 'attack';
   /** Extra potion slots while owned. */
   potionSlots?: number;
 }
@@ -100,10 +104,11 @@ define({
 });
 
 define({
+  // Original grants 4 Plated Armor; metallicize is this engine's closest stand-in.
   id: 'thread_and_needle',
   name: 'Thread and Needle',
-  desc: '每場戰鬥開始時，獲得 2 層金屬化。',
-  battleStart: [{ kind: 'applyStatus', status: 'metallicize', stacks: 2, target: 'self' }],
+  desc: '每場戰鬥開始時，獲得 4 層金屬化。',
+  battleStart: [{ kind: 'applyStatus', status: 'metallicize', stacks: 4, target: 'self' }],
 });
 
 define({
@@ -130,8 +135,9 @@ define({
 define({
   id: 'whetstone',
   name: 'Whetstone',
-  desc: '獲得時，隨機升級 1 張牌。',
-  upgradeOnPickup: 1,
+  desc: '獲得時，隨機升級 2 張攻擊牌。',
+  upgradeOnPickup: 2,
+  upgradeOnPickupType: 'attack',
 });
 
 define({
@@ -144,8 +150,8 @@ define({
 define({
   id: 'meat_on_the_bone',
   name: 'Meat on the Bone',
-  desc: '每場戰鬥勝利後，回復 4 點生命。',
-  victoryHeal: 4,
+  desc: '戰鬥勝利時，若生命不高於 50%，回復 12 點生命。',
+  victoryHealBelowHalf: 12,
 });
 
 export function getRelicDef(id: string): RelicDef {

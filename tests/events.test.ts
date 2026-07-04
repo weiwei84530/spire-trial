@@ -228,14 +228,14 @@ describe('battle event stream', () => {
       deck: deckOf('strike'),
       playerHp: 70,
       playerMaxHp: 70,
-      enemies: ['shelled_parasite'],
+      enemies: ['writhing_mass'],
     });
     const enemy = battle.state.enemies[0]!;
-    enemy.nextMoveId = 'harden';
+    enemy.nextMoveId = 'malleable';
     expect(battle.intentOf(enemy)).toEqual({
       kind: 'defend',
-      block: 8,
-      statuses: [{ id: 'metallicize', stacks: 2, onSelf: true }],
+      block: 11,
+      statuses: [{ id: 'thorns', stacks: 2, onSelf: true }],
     });
   });
 

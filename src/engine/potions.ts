@@ -1,6 +1,6 @@
 import type { Effect } from './types';
 
-/** Potions: one-shot battle items. Reuse the same atomic effects as cards. */
+/** Potions: one-shot items. Reuse the same atomic effects as cards. */
 export interface PotionDef {
   id: string;
   name: string;
@@ -8,6 +8,8 @@ export interface PotionDef {
   desc: string;
   /** 'enemy' potions need a target selected in battle. */
   target: 'enemy' | 'none';
+  /** Self-contained potions (e.g. healing) may also be drunk outside battle. */
+  usableOutsideBattle?: boolean;
   effects: Effect[];
 }
 
@@ -43,11 +45,13 @@ define({
 });
 
 define({
+  // Matches the original Blood Potion (the id keeps the existing art asset).
   id: 'healing_potion',
-  name: 'Healing Potion',
-  desc: '回復 12 點生命。',
+  name: 'Blood Potion',
+  desc: '回復最大生命的 20%。',
   target: 'none',
-  effects: [{ kind: 'heal', amount: 12 }],
+  usableOutsideBattle: true,
+  effects: [{ kind: 'healPercent', percent: 20 }],
 });
 
 define({

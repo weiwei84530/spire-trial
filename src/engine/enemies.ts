@@ -73,9 +73,10 @@ define({
       ],
     },
     {
+      // Original applies 1 Weak.
       id: 'lick',
       intent: 'debuff',
-      effects: [{ kind: 'applyStatus', status: 'weak', stacks: 2, target: 'enemy' }],
+      effects: [{ kind: 'applyStatus', status: 'weak', stacks: 1, target: 'enemy' }],
     },
   ],
   ai: {
@@ -89,9 +90,10 @@ define({
 });
 
 define({
+  // Original HP 10-15 (Curl Up is not modelled).
   id: 'louse_red',
   name: 'Red Louse',
-  hp: [16, 20],
+  hp: [10, 15],
   moves: [
     { id: 'bite', intent: 'attack', effects: [{ kind: 'damage', amount: 6 }] },
     {
@@ -140,36 +142,49 @@ define({
 // --- Act 2 roster ---
 
 define({
+  // Original kit at scaled HP (68-72 + 14 Plated Armor in StS; the armor is
+  // approximated by metallicize so the shell still "regrows" each turn).
   id: 'shelled_parasite',
   name: 'Shelled Parasite',
-  hp: [40, 44],
+  hp: [50, 55],
+  innateStatuses: { metallicize: 3 },
   moves: [
     { id: 'double_strike', intent: 'attack', effects: [{ kind: 'damage', amount: 6, times: 2 }] },
     {
-      id: 'harden',
-      intent: 'defend',
+      id: 'suck',
+      intent: 'attack',
       effects: [
-        { kind: 'block', amount: 8 },
-        { kind: 'applyStatus', status: 'metallicize', stacks: 2, target: 'self' },
+        { kind: 'damage', amount: 10 },
+        { kind: 'heal', amount: 10 },
+      ],
+    },
+    {
+      id: 'fell',
+      intent: 'attack',
+      effects: [
+        { kind: 'damage', amount: 18 },
+        { kind: 'applyStatus', status: 'frail', stacks: 2, target: 'enemy' },
       ],
     },
   ],
   ai: {
     type: 'weighted',
     choices: [
-      { move: 'double_strike', weight: 60, maxRepeat: 2 },
-      { move: 'harden', weight: 40, maxRepeat: 1 },
+      { move: 'double_strike', weight: 40, maxRepeat: 2 },
+      { move: 'suck', weight: 40, maxRepeat: 2 },
+      { move: 'fell', weight: 20, maxRepeat: 1 },
     ],
   },
 });
 
 define({
+  // Original flying-state kit (the Flying/grounded mechanic is not modelled).
   id: 'byrd',
   name: 'Byrd',
-  hp: [24, 28],
+  hp: [25, 31],
   moves: [
     { id: 'peck', intent: 'attack', effects: [{ kind: 'damage', amount: 1, times: 5 }] },
-    { id: 'swoop', intent: 'attack', effects: [{ kind: 'damage', amount: 10 }] },
+    { id: 'swoop', intent: 'attack', effects: [{ kind: 'damage', amount: 12 }] },
     {
       id: 'caw',
       intent: 'buff',
@@ -180,44 +195,48 @@ define({
     type: 'weighted',
     choices: [
       { move: 'peck', weight: 50, maxRepeat: 2 },
-      { move: 'swoop', weight: 25, maxRepeat: 1 },
-      { move: 'caw', weight: 25, maxRepeat: 1 },
+      { move: 'caw', weight: 30, maxRepeat: 1 },
+      { move: 'swoop', weight: 20, maxRepeat: 1 },
     ],
   },
 });
 
 define({
+  // Original kit at scaled HP (95-99 in StS; Hex is not modelled). The loop
+  // alternates debuff and attack turns like the original AI.
   id: 'chosen',
   name: 'Chosen',
-  hp: [50, 55],
+  hp: [55, 60],
   moves: [
-    { id: 'zap', intent: 'attack', effects: [{ kind: 'damage', amount: 12 }] },
+    { id: 'poke', intent: 'attack', effects: [{ kind: 'damage', amount: 5, times: 2 }] },
+    { id: 'zap', intent: 'attack', effects: [{ kind: 'damage', amount: 18 }] },
     {
       id: 'debilitate',
-      intent: 'debuff',
+      intent: 'attack',
       effects: [
-        { kind: 'applyStatus', status: 'weak', stacks: 2, target: 'enemy' },
-        { kind: 'applyStatus', status: 'frail', stacks: 2, target: 'enemy' },
+        { kind: 'damage', amount: 10 },
+        { kind: 'applyStatus', status: 'vulnerable', stacks: 2, target: 'enemy' },
       ],
     },
     {
       id: 'drain',
       intent: 'buff',
       effects: [
-        { kind: 'applyStatus', status: 'weak', stacks: 2, target: 'enemy' },
-        { kind: 'heal', amount: 10 },
+        { kind: 'applyStatus', status: 'weak', stacks: 3, target: 'enemy' },
+        { kind: 'applyStatus', status: 'strength', stacks: 3, target: 'self' },
       ],
     },
   ],
-  ai: { type: 'sequence', moves: ['debilitate', 'zap', 'drain', 'zap'], loopFrom: 1 },
+  ai: { type: 'sequence', moves: ['poke', 'debilitate', 'poke', 'drain', 'zap'], loopFrom: 1 },
 });
 
 define({
+  // Original chomp is 7x3 (HP scaled from 75-79; Malleable is not modelled).
   id: 'snake_plant',
   name: 'Snake Plant',
-  hp: [60, 65],
+  hp: [65, 70],
   moves: [
-    { id: 'chomp', intent: 'attack', effects: [{ kind: 'damage', amount: 6, times: 3 }] },
+    { id: 'chomp', intent: 'attack', effects: [{ kind: 'damage', amount: 7, times: 3 }] },
     {
       id: 'enfeebling_spores',
       intent: 'debuff',
@@ -237,20 +256,21 @@ define({
 });
 
 define({
+  // Original HP and solo-mode kit (no Mystic ally here, so Protect shields itself).
   id: 'centurion',
   name: 'Centurion',
-  hp: [56, 60],
+  hp: [76, 80],
   moves: [
     { id: 'slash', intent: 'attack', effects: [{ kind: 'damage', amount: 12 }] },
-    { id: 'heavy_slash', intent: 'attack', effects: [{ kind: 'damage', amount: 14 }] },
-    { id: 'fury', intent: 'defend', effects: [{ kind: 'block', amount: 15 }] },
+    { id: 'fury', intent: 'attack', effects: [{ kind: 'damage', amount: 6, times: 3 }] },
+    { id: 'protect', intent: 'defend', effects: [{ kind: 'block', amount: 15 }] },
   ],
   ai: {
     type: 'weighted',
     choices: [
       { move: 'slash', weight: 45, maxRepeat: 2 },
-      { move: 'heavy_slash', weight: 25, maxRepeat: 1 },
-      { move: 'fury', weight: 30, maxRepeat: 1 },
+      { move: 'fury', weight: 25, maxRepeat: 1 },
+      { move: 'protect', weight: 30, maxRepeat: 1 },
     ],
   },
 });
@@ -286,9 +306,10 @@ define({
   hp: [95, 100],
   moves: [
     {
+      // Original Goop Spray shuffles in 3 Slimed; wounds stand in for Slimed.
       id: 'goop_spray',
       intent: 'debuff',
-      effects: [{ kind: 'addCard', card: 'wound', count: 2, destination: 'discardPile' }],
+      effects: [{ kind: 'addCard', card: 'wound', count: 3, destination: 'discardPile' }],
     },
     { id: 'crush', intent: 'attack', effects: [{ kind: 'damage', amount: 18 }] },
     {
@@ -307,12 +328,21 @@ define({
 // --- Act 3 roster ---
 
 define({
+  // Scaled from the original 160 HP kit: multi-hit 7x3, a 15-damage strike
+  // that also blocks, and thorns standing in for Malleable/Reactive.
   id: 'writhing_mass',
   name: 'Writhing Mass',
   hp: [66, 72],
   moves: [
-    { id: 'flail', intent: 'attack', effects: [{ kind: 'damage', amount: 15 }] },
-    { id: 'wild_lash', intent: 'attack', effects: [{ kind: 'damage', amount: 7, times: 2 }] },
+    {
+      id: 'flail',
+      intent: 'attack',
+      effects: [
+        { kind: 'damage', amount: 15 },
+        { kind: 'block', amount: 16 },
+      ],
+    },
+    { id: 'wild_lash', intent: 'attack', effects: [{ kind: 'damage', amount: 7, times: 3 }] },
     {
       id: 'malleable',
       intent: 'defend',
@@ -325,23 +355,26 @@ define({
   ai: {
     type: 'weighted',
     choices: [
-      { move: 'flail', weight: 35, maxRepeat: 2 },
-      { move: 'wild_lash', weight: 35, maxRepeat: 2 },
+      { move: 'flail', weight: 30, maxRepeat: 1 },
+      { move: 'wild_lash', weight: 40, maxRepeat: 1 },
       { move: 'malleable', weight: 30, maxRepeat: 1 },
     ],
   },
 });
 
 define({
+  // Original: Laser 10 + Burn, Claw 15, and +3 Strength every turn (the
+  // passive is modelled with innate ritual). HP scaled from 90-96.
   id: 'orb_walker',
   name: 'Orb Walker',
-  hp: [48, 54],
+  hp: [56, 62],
+  innateStatuses: { ritual: 3 },
   moves: [
     {
       id: 'laser',
       intent: 'attack',
       effects: [
-        { kind: 'damage', amount: 11 },
+        { kind: 'damage', amount: 10 },
         { kind: 'addCard', card: 'burn', destination: 'discardPile' },
       ],
     },
@@ -363,11 +396,12 @@ define({
   moves: [
     { id: 'quick_tackle', intent: 'attack', effects: [{ kind: 'damage', amount: 16 }] },
     {
+      // Original applies 10 Constricted; decaying poison is the closest stand-in.
       id: 'constrict',
       intent: 'debuff',
-      effects: [{ kind: 'applyStatus', status: 'poison', stacks: 4, target: 'enemy' }],
+      effects: [{ kind: 'applyStatus', status: 'poison', stacks: 5, target: 'enemy' }],
     },
-    { id: 'smash', intent: 'attack', effects: [{ kind: 'damage', amount: 20 }] },
+    { id: 'smash', intent: 'attack', effects: [{ kind: 'damage', amount: 22 }] },
   ],
   ai: {
     type: 'weighted',
@@ -380,19 +414,20 @@ define({
 });
 
 define({
+  // Original numbers (Reincarnate/revive is not modelled).
   id: 'darkling',
   name: 'Darkling',
-  hp: [48, 52],
+  hp: [48, 56],
   moves: [
-    { id: 'nip', intent: 'attack', effects: [{ kind: 'damage', amount: 10 }] },
+    { id: 'nip', intent: 'attack', effects: [{ kind: 'damage', amount: 9 }] },
     { id: 'chomp', intent: 'attack', effects: [{ kind: 'damage', amount: 8, times: 2 }] },
-    { id: 'harden', intent: 'defend', effects: [{ kind: 'block', amount: 9 }] },
+    { id: 'harden', intent: 'defend', effects: [{ kind: 'block', amount: 12 }] },
   ],
   ai: {
     type: 'weighted',
     choices: [
-      { move: 'nip', weight: 40, maxRepeat: 2 },
-      { move: 'chomp', weight: 30, maxRepeat: 1 },
+      { move: 'nip', weight: 30, maxRepeat: 2 },
+      { move: 'chomp', weight: 40, maxRepeat: 1 },
       { move: 'harden', weight: 30, maxRepeat: 1 },
     ],
   },
@@ -410,9 +445,11 @@ define({
       effects: [{ kind: 'applyStatus', status: 'weak', stacks: 1, target: 'enemy' }],
     },
     { id: 'count', intent: 'attack', effects: [{ kind: 'damage', amount: 13 }] },
-    { id: 'it_is_time', intent: 'attack', effects: [{ kind: 'damage', amount: 32 }] },
+    { id: 'it_is_time', intent: 'attack', effects: [{ kind: 'damage', amount: 30 }] },
   ],
-  ai: { type: 'sequence', moves: ['glare', 'count', 'count', 'it_is_time'] },
+  // Original: ~4 opening Count/Glare turns, then "It Is Time" every turn
+  // (HP scaled from 500; the +5-per-use damage ramp is not modelled).
+  ai: { type: 'sequence', moves: ['glare', 'count', 'glare', 'count', 'it_is_time'], loopFrom: 4 },
 });
 
 define({
@@ -523,7 +560,7 @@ export function spawnEnemy(defId: string, rng: Rng): EnemyState {
     hp,
     maxHp: hp,
     block: 0,
-    statuses: {},
+    statuses: { ...def.innateStatuses },
     nextMoveId: '',
     moveHistory: [],
   };

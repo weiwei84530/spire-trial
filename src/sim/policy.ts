@@ -85,6 +85,10 @@ function scoreCard(battle: Battle, handIndex: number, target: number): number {
       case 'heal':
         score += Math.min(effect.amount, player.maxHp - player.hp) * 0.8;
         break;
+      case 'healPercent':
+        score +=
+          Math.min(Math.floor((player.maxHp * effect.percent) / 100), player.maxHp - player.hp) * 0.8;
+        break;
       case 'doubleBlock':
         score += Math.min(player.block, unblocked) * 1.2;
         break;

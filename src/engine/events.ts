@@ -16,6 +16,8 @@ export interface EventChoice {
   gainCard?: string;
   /** Upgrade a random upgradable card, if any. */
   upgradeRandom?: boolean;
+  /** Chance (0-1) to also find a random potion (skipped when slots are full). */
+  gainPotion?: number;
 }
 
 export interface EventDef {
@@ -90,6 +92,7 @@ export const EVENTS: EventDef[] = [
         label: '翻找貨物（獲得 15 金幣與一瓶藥水……的機會）',
         result: '你在木箱底找到一小袋金幣。',
         gold: 15,
+        gainPotion: 0.5,
       },
       { label: '繞道而行', result: '說不定是陷阱，你選擇繞開。' },
     ],

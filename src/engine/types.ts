@@ -30,6 +30,8 @@ export type Effect =
   | { kind: 'gainEnergy'; amount: number }
   | { kind: 'loseHp'; amount: number }
   | { kind: 'heal'; amount: number }
+  /** Heals a percentage of the source's max HP (e.g. Blood Potion). */
+  | { kind: 'healPercent'; percent: number }
   | { kind: 'doubleBlock' }
   | { kind: 'addCard'; card: string; count?: number; destination: PileId };
 
@@ -102,6 +104,8 @@ export interface EnemyDef {
   hp: [min: number, max: number];
   moves: EnemyMove[];
   ai: EnemyAi;
+  /** Statuses the enemy spawns with (e.g. Orb Walker's per-turn Strength gain via ritual). */
+  innateStatuses?: Partial<Record<StatusId, number>>;
   /** Triggered once when this enemy dies (e.g. splitting bosses). */
   onDeath?: { spawn: string[] };
   /** Triggered once when HP first drops to 50% or below (boss phase change). */

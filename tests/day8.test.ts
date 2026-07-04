@@ -92,15 +92,15 @@ describe('death triggers', () => {
 });
 
 describe('act 2 roster', () => {
-  it('chosen heals itself with drain', () => {
+  it('chosen weakens the player and empowers itself with drain', () => {
     const battle = battleVs(['chosen'], 3);
     const chosen = battle.state.enemies[0]!;
-    chosen.hp = 20;
     // Force the drain move and run an enemy turn.
     chosen.nextMoveId = 'drain';
     battle.endTurn();
-    expect(chosen.hp).toBe(30);
-    expect(battle.state.player.statuses.weak).toBe(2);
+    expect(chosen.statuses.strength).toBe(3);
+    // 3 Weak applied; one stack decays at the end of the player-status tick.
+    expect(battle.state.player.statuses.weak).toBeGreaterThanOrEqual(2);
   });
 
   it('act 2 battles draw from the act 2 pool', () => {

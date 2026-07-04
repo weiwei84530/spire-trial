@@ -12,12 +12,24 @@ export type Locale = 'en' | 'zh';
 
 const LOCALE_KEY = 'cardgame_locale';
 
-let current: Locale = 'en';
+/** First launch: Chinese browsers get the zh UI, everyone else English (C1). */
+function detectLocale(): Locale {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.language?.toLowerCase().startsWith('zh')) {
+      return 'zh';
+    }
+  } catch {
+    /* no navigator (tests): default to English */
+  }
+  return 'en';
+}
+
+let current: Locale = detectLocale();
 try {
   const saved = localStorage.getItem(LOCALE_KEY);
   if (saved === 'zh' || saved === 'en') current = saved;
 } catch {
-  /* storage unavailable: default to English */
+  /* storage unavailable: keep the detected default */
 }
 
 export function locale(): Locale {
@@ -66,8 +78,12 @@ const STR = {
   endTurn: { en: 'End turn', zh: '結束回合' },
   enemyTurn: { en: 'Enemy Turn', zh: '敵方回合' },
   yourTurn: { en: 'Your Turn', zh: '你的回合' },
-  endTurnEnergy: { en: 'End turn ({0} energy left)', zh: '結束回合（剩 {0} 能量）' },
+  energyLeft: { en: '{0} energy left', zh: '剩 {0} 能量' },
   playableLeft: { en: 'You can still play cards', zh: '還有可打出的卡牌' },
+  exhaustDesc: {
+    en: 'When played, this card is removed from the rest of the combat.',
+    zh: '打出後，這張卡在本場戰鬥中被移除。',
+  },
   battleLog: { en: 'Battle log', zh: '戰鬥紀錄' },
   drawPile: { en: 'Draw pile', zh: '抽牌堆' },
   discardPile: { en: 'Discard pile', zh: '棄牌堆' },
@@ -92,6 +108,14 @@ const STR = {
   relicTaken: { en: 'Relic claimed!', zh: '已取得遺物！' },
   // Event
   continue: { en: 'Continue', zh: '繼續' },
+  // Event outcome summary (real gains/losses shown under the result text)
+  outcomeHpLoss: { en: 'Lost {0} HP', zh: '失去 {0} 點生命' },
+  outcomeHpGain: { en: 'Recovered {0} HP', zh: '回復 {0} 點生命' },
+  outcomeGoldGain: { en: 'Gained {0} gold', zh: '獲得 {0} 金幣' },
+  outcomeGoldLoss: { en: 'Spent {0} gold', zh: '花費 {0} 金幣' },
+  outcomeRelic: { en: 'Relic gained: {0}', zh: '獲得遺物：{0}' },
+  outcomeUpgrade: { en: 'Card upgraded: {0}', zh: '卡牌升級：{0}' },
+  outcomePotion: { en: 'Potion found: {0}', zh: '獲得藥水：{0}' },
   // Shop
   shop: { en: 'Shop', zh: '商店' },
   sold: { en: 'Sold', zh: '已售出' },
@@ -126,13 +150,25 @@ const STR = {
   resumeGame: { en: 'Resume', zh: '繼續遊戲' },
   settings: { en: 'Settings', zh: '設定' },
   backToTitle: { en: 'Back to title', zh: '回到標題' },
-  restartRun: { en: 'Restart run', zh: '重新開局' },
-  restartConfirm: { en: 'Sure? Progress will be lost', zh: '確定？目前進度將清除' },
+  restartRun: { en: 'Restart run', zh: '重新開始新的一局' },
+  confirmRestartTitle: { en: 'Restart the run?', zh: '重新開始新的一局？' },
+  confirmRestartText: {
+    en: 'Current progress will be lost and a fresh climb begins.',
+    zh: '目前的冒險進度將會清除，並開始全新的一局。',
+  },
+  confirmRestart: { en: 'Restart', zh: '確認重新開始' },
   // Settings menu
   language: { en: 'Language', zh: '語言' },
   musicVolume: { en: 'Music volume', zh: '音樂音量' },
   sfxVolume: { en: 'Sound effects volume', zh: '音效音量' },
   muteAll: { en: 'Mute all', zh: '全部靜音' },
+  clearData: { en: 'Clear data and restart', zh: '清除資料並重啟' },
+  confirmClearTitle: { en: 'Clear all data?', zh: '清除所有資料？' },
+  confirmClearText: {
+    en: 'All saved progress and settings will be wiped, and the game will reload as if opened for the first time.',
+    zh: '所有玩家儲存資料與設定將被移除，遊戲會重新載入為初次開啟的狀態。',
+  },
+  confirmClear: { en: 'Wipe and reload', zh: '確認清除' },
   // Loading screen
   loading: { en: 'Loading', zh: '載入中' },
   // Abandon-save confirmation
@@ -335,6 +371,46 @@ export function enemyName(defId: string, engineName: string): string {
   return engineName;
 }
 
+// --- Relic / potion names (engine names are canonical English; zh overlaid) ---
+
+const RELIC_ZH: Record<string, string> = {
+  burning_blood: '燃燒之血',
+  vajra: '金剛杵',
+  anchor: '船錨',
+  bag_of_preparation: '準備背包',
+  blood_vial: '血瓶',
+  bronze_scales: '青銅鱗片',
+  oddly_smooth_stone: '異常光滑的石頭',
+  lantern: '提燈',
+  bag_of_marbles: '彈珠袋',
+  red_mask: '紅色面具',
+  thread_and_needle: '針與線',
+  twisted_funnel: '扭曲漏斗',
+  strawberry: '草莓',
+  mango: '芒果',
+  whetstone: '磨刀石',
+  potion_belt: '藥水腰帶',
+  meat_on_the_bone: '帶骨肉',
+};
+
+/** Localized relic display name; falls back to the engine (English) name. */
+export function relicName(id: string, engineName: string): string {
+  return current === 'zh' ? (RELIC_ZH[id] ?? engineName) : engineName;
+}
+
+const POTION_ZH: Record<string, string> = {
+  fire_potion: '火焰藥水',
+  block_potion: '格擋藥水',
+  strength_potion: '力量藥水',
+  healing_potion: '血液藥水',
+  weak_potion: '虛弱藥水',
+};
+
+/** Localized potion display name; falls back to the engine (English) name. */
+export function potionName(id: string, engineName: string): string {
+  return current === 'zh' ? (POTION_ZH[id] ?? engineName) : engineName;
+}
+
 // --- Relic / potion descriptions (engine descs are the zh source) ---
 
 const RELIC_DESC_EN: Record<string, string> = {
@@ -348,13 +424,13 @@ const RELIC_DESC_EN: Record<string, string> = {
   lantern: 'At the start of each combat, gain 1 Energy.',
   bag_of_marbles: 'At the start of each combat, apply 1 Vulnerable to all enemies.',
   red_mask: 'At the start of each combat, apply 1 Weak to all enemies.',
-  thread_and_needle: 'At the start of each combat, gain 2 Metallicize.',
+  thread_and_needle: 'At the start of each combat, gain 4 Metallicize.',
   twisted_funnel: 'At the start of each combat, apply 4 Poison to all enemies.',
   strawberry: 'On pickup, raise your max HP by 7.',
   mango: 'On pickup, raise your max HP by 14.',
-  whetstone: 'On pickup, upgrade 1 random card.',
+  whetstone: 'On pickup, upgrade 2 random Attacks.',
   potion_belt: 'Gain 2 extra potion slots.',
-  meat_on_the_bone: 'After each combat victory, heal 4 HP.',
+  meat_on_the_bone: 'If your HP is at or below 50% after a victory, heal 12 HP.',
 };
 
 export function relicDesc(id: string, zhDesc: string): string {
@@ -365,7 +441,7 @@ const POTION_DESC_EN: Record<string, string> = {
   fire_potion: 'Deal 20 damage to an enemy.',
   block_potion: 'Gain 12 Block.',
   strength_potion: 'Gain 2 Strength.',
-  healing_potion: 'Heal 12 HP.',
+  healing_potion: 'Heal for 20% of your Max HP.',
   weak_potion: 'Apply 3 Weak to an enemy.',
 };
 
