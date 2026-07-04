@@ -226,7 +226,7 @@ export class Run {
   /** Adaptive potion drop chance (StS-style pity), reset each act. */
   potionChance = POTION_CHANCE_BASE;
   /** Testing cheats, toggled from the cheat menu. Never persisted. */
-  readonly cheats = { oneHitKill: false, infiniteGold: false, infiniteHp: false };
+  readonly cheats = { oneHitKill: false, infiniteGold: false, infiniteHp: false, infiniteEnergy: false };
   /** Player HP when the current battle started, for damage-taken stats. */
   private battleStartHp = 0;
 

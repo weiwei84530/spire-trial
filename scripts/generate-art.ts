@@ -312,7 +312,11 @@ icon(
   'a bold grey loudspeaker pictogram emblem crossed out by one thick diagonal red slash, ' +
     'simple unmistakable silhouette, instantly readable at very small sizes, crisp clean edges, no glow spill'
 );
-icon('ui_draw', 'a face-down ornate card with a golden arrow curving upward out of it');
+icon(
+  'ui_draw',
+  'a face-down ornate card with a golden arrow curving upward out of it, ' +
+    'crisp clean silhouette, no smoke, no mist, no fog, no dust, no haze around the edges',
+);
 icon('ui_discard', 'two worn cards tossed loosely, one flipped, muted grey-blue');
 icon('ui_exhaust', 'a single card burning away at the corner into ember sparks');
 icon(

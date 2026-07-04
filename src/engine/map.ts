@@ -42,6 +42,11 @@ const NO_CHAIN: readonly NodeKind[] = ['elite', 'shop', 'rest'];
 /** Entrances on row 0: always exactly this many distinct columns. */
 export const START_NODE_COUNT = 5;
 
+/** Default grid width; odd so the boss column (centre) is exact. The UI lays
+    nodes out against this fixed span rather than the occupied extent, so the
+    boss never drifts off-centre when edge columns happen to stay empty. */
+export const GRID_COLS = 7;
+
 /**
  * Generates a branching act map with the original game's algorithm, scaled
  * down: several random walks climb the grid one row at a time (steps of -1/0/+1
@@ -51,7 +56,7 @@ export const START_NODE_COUNT = 5;
  */
 export function generateMap(rng: Rng, opts: MapOptions = {}): GameMap {
   const rowCount = opts.rows ?? 10;
-  const colCount = opts.cols ?? 7;
+  const colCount = opts.cols ?? GRID_COLS;
   const gridRows = rowCount - 1; // walkable rows; the final row is the boss
 
   // Pre-pick the entrance columns; extra walks reuse one of them so the

@@ -8,6 +8,7 @@ import { resolveCard, getCardDef } from '../engine/cards';
 import { getPotionDef } from '../engine/potions';
 import { getRelicDef } from '../engine/relics';
 import { Run, type RunSave } from '../engine/run';
+import { GRID_COLS } from '../engine/map';
 import type { MapNode, NodeKind } from '../engine/map';
 import type { ActorRef, BattleEvent, CardDef, CardInstance, EnemyState } from '../engine/types';
 import type { IntentPreview } from '../engine/battle';
@@ -223,6 +224,8 @@ export class App {
   private replayTimers: number[] = [];
   /** Hand card instanceIds already dealt in, so re-renders don't replay deal-in. */
   private readonly handSeen = new Set<number>();
+  /** Playability per card at the last render, to animate fresh dim-outs once (V3). */
+  private readonly lastPlayable = new Map<number, boolean>();
   /** Deck overlay (opened from the top bar) visibility. */
   private deckOpen = false;
   /** Abandon-save confirmation dialog visibility (title screen). */
@@ -230,15 +233,26 @@ export class App {
   /** Cheat menu overlay visibility. */
   private cheatOpen = false;
   /** Cheat toggles chosen before a run exists; copied onto each new/resumed run. */
-  private readonly cheatDefaults = { oneHitKill: false, infiniteGold: false, infiniteHp: false };
+  private readonly cheatDefaults = {
+    oneHitKill: false,
+    infiniteGold: false,
+    infiniteHp: false,
+    infiniteEnergy: false,
+  };
   /** Campfire: deck index awaiting upgrade confirmation in the preview overlay. */
   private upgradePreview: number | null = null;
   /** Enemy index under the cursor; hand numbers preview damage against it (B7). */
   private hoverEnemyIdx: number | null = null;
   private readonly root: HTMLElement;
+  /** Overlay for particles/floats/card clones: lives outside `root`, so full
+      re-renders can never cut a running effect short (V3). */
+  private readonly fxLayer: HTMLElement;
 
   constructor(root: HTMLElement) {
     this.root = root;
+    this.fxLayer = document.createElement('div');
+    this.fxLayer.className = 'fx-layer';
+    document.body.appendChild(this.fxLayer);
     // Dev hook: lets browser-side tests drive the app without physical clicks.
     (window as unknown as { __app: App }).__app = this;
     setLocale(locale()); // sync <html lang> with the persisted locale
@@ -307,6 +321,7 @@ export class App {
   /** Title screen; doubles as the resume prompt when a save exists. */
   private renderTitle(): void {
     this.onTitle = true;
+    this.fxLayer.replaceChildren();
     window.scrollTo(0, 0);
     const save = this.pendingResume;
     const saveInfo = save
@@ -316,6 +331,7 @@ export class App {
       ? `<button class="primary-btn" data-resume>${t('resume')}</button>
          <button class="ghost-btn" data-abandon>${t('abandon')}</button>`
       : `<button class="primary-btn" data-start>${t('start')}</button>`;
+    // One vertical column: every entry shares the same width so edges align (V3).
     document.body.dataset.phase = 'title';
     sound.setPhase('title');
     this.root.innerHTML = `
@@ -325,12 +341,10 @@ export class App {
           <img class="logo-img" src="${artUrl('bg', locale() === 'zh' ? 'logo' : 'logo_en')}" alt="Spire Trial" draggable="false">
           <p class="game-subtitle">${t('subtitle')}</p>
           ${saveInfo}
-          ${buttons}
-          <div class="title-links">
-            <button class="ghost-btn title-settings" data-open-settings>
-              ${iconHtml('ui_menu', 'inline-icon')} ${t('settings')}
-            </button>
-            <button class="ghost-btn title-settings" data-open-cheats>${t('cheatMenu')}</button>
+          <div class="title-menu">
+            ${buttons}
+            <button class="ghost-btn" data-open-settings>${t('settings')}</button>
+            <button class="ghost-btn" data-open-cheats>${t('cheatMenu')}</button>
           </div>
         </div>
         ${this.settingsOpen ? this.settingsOverlayHtml() : ''}
@@ -400,6 +414,7 @@ export class App {
           ${row('oneHitKill', t('cheatOneHit'))}
           ${row('infiniteGold', t('cheatGold'))}
           ${row('infiniteHp', t('cheatHp'))}
+          ${row('infiniteEnergy', t('cheatEnergy'))}
           <button class="primary-btn" data-close-cheats>${t('close')}</button>
         </div>
       </div>`;
@@ -487,14 +502,19 @@ export class App {
       this.scheduleReplay(at, () => this.startBeatAnimation(anchor));
       // Damage events within one beat stagger so multi-hits read as separate thumps.
       let fxDelay = 0;
+      let deathDelay = -1;
       for (const ev of beat.fx) {
         this.scheduleReplay(at + impactMs + fxDelay, () => this.applyEventFx(ev));
+        if (ev.type === 'enemyDeath') deathDelay = fxDelay;
         if (ev.type === 'damage') fxDelay += 120;
       }
-      const beatLength =
+      // Player beats hold long enough for the 0.5s recoil to settle before the
+      // reconciling render; a death stretches the beat past the full collapse (V3).
+      let beatLength =
         anchor?.type === 'enemyActionStart'
           ? Math.max(700, impactMs + fxDelay + 450)
-          : Math.max(320, impactMs + fxDelay + 90);
+          : Math.max(320, impactMs + fxDelay + 260);
+      if (deathDelay >= 0) beatLength = Math.max(beatLength, impactMs + deathDelay + 560);
       at += beatLength;
     }
     this.scheduleReplay(at, () => this.finishReplay(opts.onDone));
@@ -615,6 +635,9 @@ export class App {
     if (!battle) return;
     const maxHp =
       ref === 'player' ? battle.state.player.maxHp : (battle.state.enemies[ref.enemy]?.maxHp ?? 1);
+    // The pre-deduction preview is stale once real damage lands, and it would
+    // sit on top of the drain animation and hide it — drop it first (V3).
+    el.querySelector('.hp-preview')?.remove();
     const fill = el.querySelector<HTMLElement>('.hp-fill');
     if (fill) fill.style.width = `${Math.max(0, (hp / maxHp) * 100)}%`;
     const text = el.querySelector('.hp-text');
@@ -714,24 +737,33 @@ export class App {
   }
 
   private floatText(host: Element, text: string, kind: 'dmg' | 'block' | 'heal'): void {
+    const r = host.getBoundingClientRect();
     const span = document.createElement('span');
     span.className = `float-text ${kind}`;
     span.textContent = text;
-    host.appendChild(span);
+    span.style.left = `${r.left + r.width / 2}px`;
+    span.style.top = `${r.top + r.height * (kind === 'block' ? 0.45 : 0.2)}px`;
+    span.addEventListener('animationend', () => span.remove());
+    window.setTimeout(() => span.remove(), 1500);
+    this.fxLayer.appendChild(span);
   }
 
   /** Short-lived burst of particle sparks centered on the host element. */
   private burst(host: Element, kind: 'dmg' | 'block' | 'heal', count: number): void {
+    const r = host.getBoundingClientRect();
     for (let i = 0; i < count; i++) {
       const p = document.createElement('span');
       p.className = `burst ${kind}`;
+      p.style.left = `${r.left + r.width / 2}px`;
+      p.style.top = `${r.top + r.height * 0.4}px`;
       const angle = Math.random() * Math.PI * 2;
       const dist = 28 + Math.random() * 55;
       p.style.setProperty('--dx', `${(Math.cos(angle) * dist).toFixed(0)}px`);
       p.style.setProperty('--dy', `${(Math.sin(angle) * dist - 22).toFixed(0)}px`);
       p.style.animationDelay = `${(Math.random() * 90).toFixed(0)}ms`;
       p.addEventListener('animationend', () => p.remove());
-      host.appendChild(p);
+      window.setTimeout(() => p.remove(), 1200);
+      this.fxLayer.appendChild(p);
     }
   }
 
@@ -751,12 +783,17 @@ export class App {
   private onCardClick(index: number): void {
     const battle = this.run.battle;
     if (!battle || this.enemyPhase || this.playLock || this.replaying) return;
+    // While aiming, every other card is disabled: only re-clicking the
+    // selected card (to cancel) or clicking an enemy does anything (V3).
+    if (this.selected !== null && this.selected !== index) return;
     const card = battle.state.player.hand[index];
     if (!card) return;
     if (!this.isHandCardPlayable(index)) return;
     if (resolveCard(card).target === 'enemy') {
       this.selected = this.selected === index ? null : index;
-      this.render();
+      // Patch instead of re-render: the card elements must survive so the
+      // select/deselect transform and the dimming can transition (V3).
+      this.patchAiming();
       return;
     }
     if (battle.canPlay(index)) {
@@ -765,25 +802,171 @@ export class App {
     }
   }
 
-  /** Plays a card after a short fly-toward-the-discard animation on its DOM node. */
+  /**
+   * Syncs the live DOM with the aiming state (`this.selected`): the selected
+   * card's highlight, the dim on every other card, the enemies' targetable
+   * glow and their HP-preview segments — all without rebuilding, so the CSS
+   * transitions carry the state changes smoothly (V3).
+   */
+  private patchAiming(): void {
+    const battle = this.run.battle;
+    if (!battle) return;
+    this.root.querySelectorAll<HTMLElement>('.hand [data-card]').forEach((el) => {
+      const i = Number(el.dataset.card);
+      el.classList.toggle('selected', this.selected === i);
+      el.classList.toggle('aim-dim', this.selected !== null && this.selected !== i);
+    });
+    battle.state.enemies.forEach((enemy, i) => {
+      const el = this.root.querySelector<HTMLElement>(`[data-enemy="${i}"]`);
+      if (!el) return;
+      el.classList.toggle(
+        'targetable',
+        (this.selected !== null || this.potionSelected !== null) && enemy.hp > 0,
+      );
+      const bar = el.querySelector('.hp-bar');
+      if (bar) {
+        bar.outerHTML = this.hpBarHtml(
+          enemy.hp,
+          enemy.maxHp,
+          enemy.block,
+          this.cardPreviewDamage(enemy),
+        );
+      }
+    });
+  }
+
+  /** The aiming state belongs to target selection only: once a play is
+      confirmed the enemy glow and the dim on the other cards come off
+      immediately (the filter transition fades them back in), so a dying enemy
+      never keeps a glowing highlight through its death animation (V3). */
+  private clearTargeting(): void {
+    this.root
+      .querySelectorAll('.enemy.targetable')
+      .forEach((el) => el.classList.remove('targetable'));
+    this.root
+      .querySelectorAll('.hand .aim-dim')
+      .forEach((el) => el.classList.remove('aim-dim'));
+  }
+
+  /** Plays a card after its face flies from the hand into the matching pile icon. */
   private resolveCardPlay(index: number, target?: number): void {
     const battle = this.run.battle!;
+    this.clearTargeting();
     sound.play('card');
     const doPlay = () => {
       this.playLock = false;
       if (this.run.phase !== 'battle' || this.onTitle) return;
       const cursor = battle.state.events.length;
       battle.playCard(index, target);
-      this.replay(battle.state.events.slice(cursor), { onDone: () => this.render() });
+      this.replay(battle.state.events.slice(cursor), { onDone: () => this.flipHand() });
     };
-    const el = this.root.querySelector(`[data-card="${index}"]`);
+    const el = this.root.querySelector<HTMLElement>(`[data-card="${index}"]`);
     if (!el) {
       doPlay();
       return;
     }
-    el.classList.add('fly-out');
+    const card = battle.state.player.hand[index];
+    const def = card ? resolveCard(card) : null;
+    this.flyCardToPile(el, def && (def.exhaust || def.type === 'power') ? 'exhaust' : 'discard');
+    this.collapseHandGap(el);
     this.playLock = true;
     window.setTimeout(doPlay, 180);
+  }
+
+  /**
+   * Slides the neighbours over the played card's slot the moment it leaves the
+   * hand (mini-FLIP over the old DOM). Each survivor is retargeted to its
+   * FINAL fan slot — angle, lift and overlap — so position and rotation glide
+   * together and the post-replay render has nothing left to snap (V3).
+   */
+  private collapseHandGap(removed: HTMLElement): void {
+    const cards = [...this.root.querySelectorAll<HTMLElement>('.hand [data-cid]')].filter(
+      (c) => c !== removed,
+    );
+    if (cards.length === 0) return;
+    const beforeX = new Map(cards.map((c) => [c, c.offsetLeft]));
+    const oldPose = new Map(
+      cards.map((c) => [
+        c,
+        {
+          rot: c.style.getPropertyValue('--rot') || '0deg',
+          lift: c.style.getPropertyValue('--lift') || '0px',
+        },
+      ]),
+    );
+    removed.style.display = 'none'; // out of flow: flex reflows the fan now
+    cards.forEach((c, i) => {
+      const m = App.fanMetrics(i, cards.length);
+      c.style.setProperty('--rot', `${m.rot.toFixed(2)}deg`);
+      c.style.setProperty('--lift', `${m.lift.toFixed(1)}px`);
+      c.style.margin = `0 ${m.overlap}px`;
+    });
+    void this.root.querySelector<HTMLElement>('.hand')?.offsetWidth;
+    for (const c of cards) {
+      const dx = (beforeX.get(c) ?? c.offsetLeft) - c.offsetLeft;
+      const old = oldPose.get(c)!;
+      c.style.transition = 'none';
+      c.style.transform = `translate(${dx}px, 0) rotate(${old.rot}) translateY(${old.lift}) scale(1.07)`;
+    }
+    void this.root.querySelector<HTMLElement>('.hand')?.offsetWidth;
+    for (const c of cards) {
+      c.classList.add('reflow');
+      c.style.transition = '';
+      c.style.transform = '';
+    }
+    window.setTimeout(() => cards.forEach((c) => c.classList.remove('reflow')), 320);
+  }
+
+  /**
+   * Sends a visual clone of a hand card flying into a pile icon (played cards
+   * to discard/exhaust, end-of-turn sweep to discard). The clone lives on the
+   * fx layer, so replay-ending renders can never cut the flight short (V3).
+   */
+  private flyCardToPile(el: HTMLElement, pile: 'discard' | 'exhaust', delayMs = 0): void {
+    const target = this.root.querySelector<HTMLElement>(`.pile-corner.${pile}`);
+    const r = el.getBoundingClientRect();
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const rot = el.style.getPropertyValue('--rot') || '0deg';
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.removeAttribute('data-card');
+    clone.classList.remove('in-hand', 'selected', 'dealt', 'playable', 'not-playable');
+    clone.classList.add('fx-card-fly');
+    // Set placement per-property: wiping cssText would also wipe the card's
+    // inline background-image and fan variables copied by cloneNode (V3).
+    // The clone is centre-matched at the card's untransformed size and takes
+    // off wearing the card's fan angle, so nothing visibly snaps straight.
+    clone.style.left = `${cx - w / 2}px`;
+    clone.style.top = `${cy - h / 2}px`;
+    clone.style.width = `${w}px`;
+    clone.style.height = `${h}px`;
+    clone.style.margin = '0';
+    clone.style.setProperty('--fly-delay', `${delayMs}ms`);
+    clone.style.transform = `rotate(${rot}) scale(1.07)`;
+    el.style.visibility = 'hidden';
+    this.fxLayer.appendChild(clone);
+    const tr = target?.getBoundingClientRect();
+    const toX = tr ? tr.left + tr.width / 2 - cx : 0;
+    const toY = tr ? tr.top + tr.height / 2 - cy : window.innerHeight - r.top;
+    // Resolve the start state first, so the inline end transform transitions.
+    void clone.offsetWidth;
+    clone.style.transform = `translate(${toX.toFixed(0)}px, ${toY.toFixed(0)}px) rotate(18deg) scale(0.22)`;
+    clone.style.opacity = '0.25';
+    let done = false;
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      clone.remove();
+      if (target?.isConnected) {
+        target.classList.remove('bump');
+        void target.offsetWidth;
+        target.classList.add('bump');
+      }
+    };
+    clone.addEventListener('transitionend', cleanup, { once: true });
+    window.setTimeout(cleanup, 480 + delayMs);
   }
 
   private onEnemyClick(enemyIndex: number): void {
@@ -793,6 +976,7 @@ export class App {
       const enemy = battle.state.enemies[enemyIndex];
       if (enemy && enemy.hp > 0) {
         sound.play('potion');
+        this.clearTargeting();
         const cursor = battle.state.events.length;
         this.run.usePotion(this.potionSelected, enemyIndex);
         this.potionSelected = null;
@@ -843,10 +1027,16 @@ export class App {
     if (this.enemyPhase || this.playLock || this.replaying) return;
     this.selected = null;
     this.potionSelected = null;
+    this.clearTargeting();
+    // Sweep the leftover hand into the discard corner before the banner hides it.
+    this.root
+      .querySelectorAll<HTMLElement>('.hand [data-card]')
+      .forEach((el, i) => this.flyCardToPile(el, 'discard', i * 30));
     const cursor = battle.state.events.length;
     battle.endTurn();
     // Every card in the new hand should deal in fresh after the enemy turn.
     this.handSeen.clear();
+    this.lastPlayable.clear();
     this.replay(battle.state.events.slice(cursor), {
       banner: t('enemyTurn'),
       onDone: () => {
@@ -869,10 +1059,13 @@ export class App {
   private render(): void {
     // A full render always shows the true final state; abandon any mid-replay patching.
     this.cancelReplay();
+    // Effects only ever belong to the battle screen; drop leftovers elsewhere.
+    if (this.run.phase !== 'battle') this.fxLayer.replaceChildren();
     // Entering a battle opens on the player's turn banner with a fresh deal.
     if (this.run.phase === 'battle' && this.lastPhase !== 'battle') {
       this.turnBanner = t('yourTurn');
       this.handSeen.clear();
+      this.lastPlayable.clear();
     }
     let screen: string;
     switch (this.run.phase) {
@@ -920,6 +1113,9 @@ export class App {
       this.lastPhase = this.run.phase;
     }
     this.bind();
+    // Synchronous, pre-paint: the draw-in keyframes read their start offsets
+    // from CSS vars that must be in place before the first frame renders.
+    if (this.run.phase === 'battle') this.animateDraws();
 
     // Autosave between nodes; a finished run clears the slot.
     if (this.run.phase === 'map') saveRun(this.run.toSave());
@@ -997,14 +1193,14 @@ export class App {
       </div>`;
   }
 
-  /** Restart-run needs the same explicit popup as abandoning a save (A7). */
+  /** Restart-run shows the exact same popup as abandoning a save from the title (V3). */
   private restartOverlayHtml(): string {
     return `
       <div class="overlay">
         <div class="overlay-box menu-box">
-          <h2>${t('confirmRestartTitle')}</h2>
-          <p class="confirm-text">${t('confirmRestartText')}</p>
-          <button class="ghost-btn danger" data-confirm-restart>${t('confirmRestart')}</button>
+          <h2>${t('confirmAbandonTitle')}</h2>
+          <p class="confirm-text">${t('confirmAbandonText')}</p>
+          <button class="ghost-btn danger" data-confirm-restart>${t('confirmAbandon')}</button>
           <button class="primary-btn" data-cancel-restart>${t('cancel')}</button>
         </div>
       </div>`;
@@ -1204,12 +1400,13 @@ export class App {
   private mapScreen(): string {
     const rows = this.run.map.rows;
     const rowCount = rows.length;
-    // Column span follows the widest row of the generated grid (7-col StS-style).
-    const maxCol = Math.max(...rows.flat().map((n) => n.col));
+    // Fixed 7-column span: laying out against the occupied extent instead
+    // re-stretches the grid whenever an edge column stays empty, drifting the
+    // boss (always col 3) off-centre (V3).
     const width = 1000;
     const rowGap = 66;
     const height = rowCount * rowGap + 30;
-    const colGap = maxCol > 0 ? (width - 160) / maxCol : 0;
+    const colGap = (width - 160) / (GRID_COLS - 1);
     const x = (col: number) => 80 + col * colGap;
     const y = (row: number) => height - 40 - row * rowGap;
     const available = new Set(this.run.availableNodes().map((n) => n.id));
@@ -1325,8 +1522,10 @@ export class App {
     const wouldWaste =
       player.energy > 0 && player.hand.some((_, i) => this.isHandCardPlayable(i));
     const sub = wouldWaste ? `<span class="end-turn-sub">${t('energyLeft', player.energy)}</span>` : '';
+    // The glow invites ending the turn — it lights up when nothing is left to
+    // play; while cards are still playable only the hint line shows (V3).
     return `
-      <button class="end-turn ${wouldWaste ? 'warn' : ''}" ${wouldWaste ? `title="${t('playableLeft')}"` : ''}>
+      <button class="end-turn ${wouldWaste ? 'warn' : 'ready'}" ${wouldWaste ? `title="${t('playableLeft')}"` : ''}>
         <span class="end-turn-label">${t('endTurn')}</span>${sub}
       </button>`;
   }
@@ -1443,20 +1642,40 @@ export class App {
    * `dealOrder` >= 0 marks a freshly drawn card that plays the staggered
    * deal-in animation; -1 renders it already settled (no re-deal on re-renders).
    */
+  /** Fan geometry for one hand slot — single source of truth shared by the
+      renderer and the play-time collapse animation, so angles never jump (V3). */
+  private static fanMetrics(index: number, total: number): { rot: number; lift: number; overlap: number } {
+    const mid = (total - 1) / 2;
+    const off = index - mid;
+    const rot = off * Math.min(4, 34 / Math.max(total, 1));
+    const lift = off * off * 5;
+    // Big hands squeeze tighter so they stay clear of the corner HUD.
+    const overlap = total > 6 ? -16 - (total - 6) * 8 : -16;
+    return { rot, lift, overlap };
+  }
+
   private handCardHtml(card: CardInstance, index: number, total: number, dealOrder: number): string {
     const def = resolveCard(card);
     const playable = this.isHandCardPlayable(index);
     const dealt = dealOrder >= 0 ? 'dealt' : '';
-    const cls = `${playable ? 'playable' : 'not-playable'} ${this.selected === index ? 'selected' : ''} ${dealt}`;
-    const mid = (total - 1) / 2;
-    const off = index - mid;
-    const rot = off * Math.min(4, 34 / Math.max(total, 1));
-    const lift = Math.abs(off) * Math.abs(off) * 5;
-    // Big hands squeeze tighter so they stay clear of the corner HUD.
-    const overlap = total > 6 ? -16 - (total - 6) * 8 : -16;
-    const deal = dealOrder >= 0 ? `--deal:${dealOrder * 55}ms;` : '';
+    // One-shot fade-to-dark when a card JUST lost playability (energy spent):
+    // rebuilt DOM can't transition, so the freshly dimmed card animates once.
+    const dimFresh = !playable && this.lastPlayable.get(card.instanceId) ? 'dim-fresh' : '';
+    this.lastPlayable.set(card.instanceId, playable);
+    // While aiming, every card but the selected one reads as disabled.
+    const aimDim = this.selected !== null && this.selected !== index ? 'aim-dim' : '';
+    const cls = `${playable ? 'playable' : 'not-playable'} ${this.selected === index ? 'selected' : ''} ${dealt} ${dimFresh} ${aimDim}`;
+    const { rot, lift, overlap } = App.fanMetrics(index, total);
+    const deal = dealOrder >= 0 ? `--deal:${dealOrder * 70}ms;` : '';
     const style = `--rot:${rot.toFixed(2)}deg;--lift:${lift.toFixed(1)}px;${deal}margin:0 ${overlap}px;`;
-    return cardFaceHtml(def, `in-hand ${cls}`, `data-card="${index}"`, style, this.handCardCtx());
+    // data-cid keys the card across re-renders for the FLIP reflow (V3).
+    return cardFaceHtml(
+      def,
+      `in-hand ${cls}`,
+      `data-card="${index}" data-cid="${card.instanceId}"`,
+      style,
+      this.handCardCtx(),
+    );
   }
 
   /** Battle context for live card numbers: player buffs + the hovered target. */
@@ -1471,9 +1690,72 @@ export class App {
     };
   }
 
+  /** FLIP reflow in progress: hover refreshes must not rebuild the hand mid-slide. */
+  private handFlipping = false;
+
+  /**
+   * FLIP: measure the old hand, re-render, then slide the surviving cards from
+   * their previous slots into the new fan layout instead of snapping (V3).
+   * Offset positions are transform-independent, so hover lifts and rotations
+   * never corrupt the measurement.
+   */
+  private flipHand(): void {
+    const before = new Map<string, { x: number; y: number }>();
+    this.root.querySelectorAll<HTMLElement>('.hand [data-cid]').forEach((el) => {
+      before.set(el.dataset.cid!, { x: el.offsetLeft, y: el.offsetTop });
+    });
+    this.render();
+    if (before.size === 0) return;
+    const moved: HTMLElement[] = [];
+    this.root.querySelectorAll<HTMLElement>('.hand [data-cid]').forEach((el) => {
+      const prev = before.get(el.dataset.cid!);
+      if (!prev) return; // freshly drawn: draw-in owns its entrance
+      const dx = prev.x - el.offsetLeft;
+      const dy = prev.y - el.offsetTop;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      el.style.transform = `translate(${dx}px, ${dy}px) rotate(var(--rot, 0deg)) translateY(var(--lift, 0px)) scale(1.07)`;
+      moved.push(el);
+    });
+    if (moved.length === 0) return;
+    this.handFlipping = true;
+    void this.root.querySelector<HTMLElement>('.hand')?.offsetWidth; // commit start positions
+    for (const el of moved) {
+      el.classList.add('reflow');
+      el.style.transform = '';
+    }
+    window.setTimeout(() => {
+      for (const el of moved) el.classList.remove('reflow');
+      this.handFlipping = false;
+    }, 320);
+  }
+
+  /**
+   * Points each freshly dealt card's draw-in animation at the draw pile icon.
+   * Positions come from offsetLeft/offsetTop (transform-independent): a
+   * getBoundingClientRect here would read the animation's backwards-fill
+   * `from` transform and corrupt the measurement (V3).
+   */
+  private animateDraws(): void {
+    const pile = this.root.querySelector<HTMLElement>('.pile-corner.draw');
+    if (!pile) return;
+    const pr = pile.getBoundingClientRect();
+    const pileCx = pr.left + pr.width / 2;
+    const pileCy = pr.top + pr.height / 2;
+    this.root.querySelectorAll<HTMLElement>('.hand .card.dealt').forEach((el) => {
+      const parent = el.offsetParent as HTMLElement | null;
+      if (!parent) return;
+      const base = parent.getBoundingClientRect();
+      const cx = base.left + el.offsetLeft + el.offsetWidth / 2;
+      const cy = base.top + el.offsetTop + el.offsetHeight / 2;
+      el.style.setProperty('--from-x', `${(pileCx - cx).toFixed(0)}px`);
+      el.style.setProperty('--from-y', `${(pileCy - cy).toFixed(0)}px`);
+    });
+  }
+
   /** Re-renders only the hand in place (hover previews must not rebuild the DOM under the cursor). */
   private refreshHand(): void {
     if (this.run.phase !== 'battle' || !this.run.battle || this.enemyPhase || this.replaying) return;
+    if (this.handFlipping) return; // a reflow slide is running; don't snap it
     const hand = this.root.querySelector<HTMLElement>('.hand');
     if (!hand) return;
     const player = this.run.battle.state.player;
@@ -1494,7 +1776,10 @@ export class App {
       const lost = Math.min(hp, previewDmg);
       const left = Math.max(0, ((hp - lost) / maxHp) * 100);
       const width = (lost / maxHp) * 100;
-      preview = `<div class="hp-preview" style="left:${left}%;width:${width}%"></div>`;
+      // A lethal preview reaches the bar's left end: round both corners there
+      // so it follows the bar's silhouette instead of ending in a hard edge (V3).
+      const zero = hp - lost <= 0 ? ' to-zero' : '';
+      preview = `<div class="hp-preview${zero}" style="left:${left}%;width:${width}%"></div>`;
     }
     return `
       <div class="hp-bar">

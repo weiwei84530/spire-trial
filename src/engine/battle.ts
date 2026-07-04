@@ -65,7 +65,7 @@ export class Battle {
   /** Enemies whose `enemyDeath` event has been emitted (dedupes multi-cause deaths). */
   private readonly deathEmitted = new Set<EnemyState>();
   /** Testing cheats, shared by reference with the owning Run. */
-  cheats: { oneHitKill?: boolean; infiniteHp?: boolean } = {};
+  cheats: { oneHitKill?: boolean; infiniteHp?: boolean; infiniteEnergy?: boolean } = {};
 
   constructor(config: BattleConfig) {
     this.rng = new Rng(config.seed);
@@ -140,7 +140,8 @@ export class Battle {
     if (!card) return false;
     const def = resolveCard(card);
     if (def.unplayable) return false;
-    if (def.cost !== 'x' && def.cost > this.state.player.energy) return false;
+    if (!this.cheats.infiniteEnergy && def.cost !== 'x' && def.cost > this.state.player.energy)
+      return false;
     if (def.target === 'enemy') {
       if (targetIndex === undefined) return false;
       const target = this.state.enemies[targetIndex];
@@ -158,8 +159,9 @@ export class Battle {
     const def = resolveCard(card);
 
     // X-cost cards consume all remaining energy; x feeds effects with times: 'x'.
+    // The infiniteEnergy cheat keeps X scaling but skips the deduction entirely.
     const x = def.cost === 'x' ? player.energy : 0;
-    const spent = def.cost === 'x' ? x : def.cost;
+    const spent = this.cheats.infiniteEnergy ? 0 : def.cost === 'x' ? x : def.cost;
     player.energy -= spent;
     player.hand.splice(handIndex, 1);
     this.log(`Player plays ${def.name}`);

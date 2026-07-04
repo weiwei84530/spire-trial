@@ -83,6 +83,18 @@ body[data-phase='shop'] {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Persistent effect overlay: floats, particles and card clones live here so a
+   full battle re-render can never cut a running effect short (V3). */
+.fx-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  overflow: hidden;
+}
+.fx-layer .burst,
+.fx-layer .float-text { position: fixed; }
+
 .burst {
   position: absolute;
   left: 50%;
@@ -148,12 +160,19 @@ body[data-phase='shop'] {
   background: rgba(10, 11, 15, 0.88);
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  /* Anchor for the absolutely centred act/floor readout below. */
+  position: relative;
 }
 .top-bar .stat { display: inline-flex; align-items: center; gap: 5px; }
 .top-bar .hp-stat { color: #ff8d80; font-weight: 700; }
 .top-bar .gold-stat { color: var(--energy); font-weight: 700; }
+/* Pinned to the strip's true centre: growing potion/relic chips on the left
+   must never push the act readout sideways (V3). */
 .top-bar-center {
-  flex: 1;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   text-align: center;
   color: #ffe9ad;
   display: inline-flex;
@@ -161,6 +180,7 @@ body[data-phase='shop'] {
   justify-content: center;
   gap: 6px;
   text-shadow: 0 1px 3px #000;
+  white-space: nowrap;
 }
 .top-bar-right { display: inline-flex; align-items: center; gap: 14px; }
 .deck-chip { cursor: pointer; }
@@ -219,41 +239,61 @@ body[data-phase='shop'] {
 .card-row.wrap { flex-wrap: wrap; max-width: 1060px; margin: 0 auto; }
 
 .card.pickable { cursor: pointer; }
-.card.pickable:hover { transform: translateY(-8px); box-shadow: 0 0 0 3px var(--energy); }
+/* Every card-select context uses the same tight, dense golden glow — never a
+   hard orange ring (V3). Keep the radius short so the glow hugs the card. */
+.card.pickable:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 0 10px 3px rgba(232, 185, 59, 0.85), 0 10px 22px rgba(0, 0, 0, 0.6);
+}
 .card.dimmed { opacity: 0.4; cursor: default; }
 
 /* All buttons share the carved-stone plate, 9-sliced so any size keeps clean
    corners and the label always has real padding (no squashed texture). */
-/* Shared metrics: the plate must read at least twice as tall as its label, so
-   the vertical padding stays generous and every stacked pair lines up (A1/A8). */
+/* Shared metrics (v3): every plate has a FIXED height with the label flex-centered,
+   and zero own margin — stacked pairs align because spacing is owned by the
+   container's gap, never by per-button margins. */
 .primary-btn {
-  border: 16px solid transparent;
-  border-image: url('../art/frames/btn_stone.webp') 90 fill / 16px stretch;
+  border: 8px solid transparent;
+  border-image: url('../art/frames/btn_stone.webp') 60 fill / 8px stretch;
   background: none;
   color: #ffe9ad;
-  padding: 13px 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 46px;
+  padding: 0 30px;
   font-size: 17px;
   line-height: 1.35;
   font-weight: 700;
   letter-spacing: 3px;
   cursor: pointer;
-  margin: 10px 0;
+  margin: 0;
   text-shadow: 0 1px 3px #000;
   filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.5));
 }
 .ghost-btn {
-  border: 16px solid transparent;
-  border-image: url('../art/frames/btn_stone.webp') 90 fill / 16px stretch;
+  border: 8px solid transparent;
+  border-image: url('../art/frames/btn_stone.webp') 60 fill / 8px stretch;
   background: none;
   color: #cfc8b8;
-  padding: 13px 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 46px;
+  padding: 0 24px;
   font-size: 17px;
   line-height: 1.35;
   cursor: pointer;
-  margin-top: 22px;
+  margin: 0;
   text-shadow: 0 1px 3px #000;
   filter: brightness(0.82) saturate(0.85) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
 }
+/* Dialog flows (reward / rest / shop) have no flex gap — give the action
+   buttons a scoped top margin so they clear the content above them. */
+.dialog-screen .primary-btn,
+.dialog-screen .ghost-btn { margin-top: 16px; }
 .ghost-btn:hover { color: var(--text); filter: brightness(1.02) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5)); }
 
 /* --- Top bar chips (relics & potions) --- */
@@ -281,17 +321,22 @@ body[data-phase='shop'] {
 .inline-icon { width: 28px; height: 28px; object-fit: contain; vertical-align: -8px; }
 .potion-chip.usable { cursor: pointer; }
 .potion-chip.usable:hover { background: rgba(232, 185, 59, 0.18); }
-.potion-chip.selected { box-shadow: 0 0 10px 2px rgba(232, 185, 59, 0.65); background: rgba(232, 185, 59, 0.16); }
+.potion-chip.selected { box-shadow: 0 0 8px 3px rgba(232, 185, 59, 0.85); background: rgba(232, 185, 59, 0.16); }
 .top-bar-right { margin-left: auto; }
 
 /* --- Reward extras --- */
+/* Dark translucent plaque with a vertical sheen and a thin gold rim (V3). */
 .reward-extras {
   color: var(--text);
-  background: rgba(34, 37, 45, 0.92);
+  background:
+    linear-gradient(180deg, rgba(48, 40, 26, 0.55), rgba(12, 10, 8, 0.15) 30%, rgba(0, 0, 0, 0.35)),
+    rgba(12, 10, 8, 0.72);
   display: inline-block;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 8px;
-  padding: 12px 30px;
+  border: 1px solid rgba(232, 185, 59, 0.35);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 233, 173, 0.12), inset 0 -8px 18px rgba(0, 0, 0, 0.45),
+    0 6px 18px rgba(0, 0, 0, 0.55);
+  padding: 14px 32px;
   line-height: 2.1;
   font-size: 16px;
   margin-bottom: 4px;
@@ -322,7 +367,7 @@ body[data-phase='shop'] {
 .relic-choice-img { width: 64px; height: 64px; object-fit: contain; }
 .relic-choice-name { font-weight: 700; font-size: 16px; color: #ffe9ad; }
 .relic-choice-desc { font-size: 13.5px; color: var(--muted); line-height: 1.5; }
-.ghost-btn.small { padding: 7px 18px; font-size: 13.5px; margin-top: 10px; }
+.ghost-btn.small { height: 36px; padding: 0 18px; font-size: 13.5px; margin-top: 10px; border-width: 6px; border-image-width: 6px; }
 
 /* --- Event screen --- */
 .event-art {
@@ -340,11 +385,16 @@ body[data-phase='shop'] {
 .choice-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
 /* Event choices wear the same carved-stone plate as every other button (A10). */
 .choice-btn {
-  border: 16px solid transparent;
-  border-image: url('../art/frames/btn_stone.webp') 90 fill / 16px stretch;
+  border: 8px solid transparent;
+  border-image: url('../art/frames/btn_stone.webp') 60 fill / 8px stretch;
   background: none;
   color: var(--text);
-  padding: 12px 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 46px;
+  padding: 5px 28px;
   font-size: 16px;
   line-height: 1.4;
   cursor: pointer;
@@ -380,11 +430,13 @@ body[data-phase='shop'] {
 }
 /* Shop rows share the stone plate too (A11). */
 .shop-row {
-  border: 16px solid transparent;
-  border-image: url('../art/frames/btn_stone.webp') 90 fill / 16px stretch;
+  border: 8px solid transparent;
+  border-image: url('../art/frames/btn_stone.webp') 60 fill / 8px stretch;
   background: none;
   color: var(--text);
-  padding: 10px 20px;
+  box-sizing: border-box;
+  height: 46px;
+  padding: 0 20px;
   font-size: 15.5px;
   line-height: 1.4;
   cursor: pointer;
@@ -457,7 +509,8 @@ body[data-phase='shop'] {
   max-width: 100%;
   object-fit: contain;
   object-position: bottom;
-  margin-bottom: calc(-1 * var(--gnd, 0px));
+  /* Extra 5px drops the feet onto the shadow, matching the enemies (V3). */
+  margin-bottom: calc(-1 * var(--gnd, 0px) - 5px);
   transform-origin: 50% 100%;
   animation: idle-bob 4.2s ease-in-out infinite;
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6));
@@ -474,7 +527,7 @@ body[data-phase='shop'] {
   background: radial-gradient(ellipse, rgba(0, 0, 0, 0.45), transparent 70%);
   z-index: -1;
 }
-.hero.hit .hero-art img { animation: hit-shake 0.3s; }
+.hero.hit .hero-art img { animation: hit-shake 0.5s ease-out; }
 .hero.lunge .hero-art img { animation: hero-lunge 0.42s ease-in-out; }
 @keyframes hero-lunge {
   0%, 100% { transform: translateX(0); }
@@ -513,20 +566,16 @@ body[data-phase='shop'] {
 .enemy.dead .intent,
 .enemy.dead .enemy-art::after { visibility: hidden; }
 
-/* Target pick: golden underlight + gentle float instead of a hard outline box. */
+/* Target pick: golden highlight + underlight only — no animation override, so
+   the idle breathing loop keeps running untouched while aiming (V3). */
 .enemy.targetable { cursor: pointer; }
 .enemy.targetable .enemy-art img {
   filter: brightness(1.18) drop-shadow(0 0 16px rgba(232, 185, 59, 0.65));
-  animation: target-float 1.5s ease-in-out infinite;
 }
 .enemy.targetable .enemy-art::after {
   background: radial-gradient(ellipse, rgba(232, 185, 59, 0.55), transparent 72%);
   height: 14px;
   width: 82%;
-}
-@keyframes target-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-7px); }
 }
 
 .enemy-art { position: relative; padding-bottom: 8px; }
@@ -550,8 +599,9 @@ body[data-phase='shop'] {
   max-height: var(--eh, 160px);
   object-fit: contain;
   object-position: bottom;
-  /* --gnd trims the art's transparent bottom padding so feet meet the shadow. */
-  margin-bottom: calc(-1 * var(--gnd, 0px));
+  /* --gnd trims the art's transparent bottom padding; the extra 5px drops the
+     feet onto the shadow so they land at about half its height (V3). */
+  margin-bottom: calc(-1 * var(--gnd, 0px) - 5px);
   transform-origin: 50% 100%;
   animation: idle-bob 3.8s ease-in-out infinite;
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6));
@@ -582,11 +632,16 @@ body[data-phase='shop'] {
 }
 
 /* --- Battle FX (classes applied after each action by diffing state) --- */
-.enemy.hit .enemy-art img { animation: hit-shake 0.3s; }
+.enemy.hit .enemy-art img { animation: hit-shake 0.5s ease-out; }
+/* Decaying oscillation: four diminishing swings so the recoil settles softly
+   instead of snapping back the instant the impact ends (V3). */
 @keyframes hit-shake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-6px) rotate(-2deg); }
-  60% { transform: translateX(6px) rotate(2deg); }
+  0% { transform: translateX(0); }
+  12% { transform: translateX(-11px) rotate(-2.5deg); }
+  34% { transform: translateX(8px) rotate(1.8deg); }
+  58% { transform: translateX(-4px) rotate(-0.8deg); }
+  80% { transform: translateX(2px) rotate(0.3deg); }
+  100% { transform: translateX(0); }
 }
 
 .enemy.just-died .enemy-art img { animation: collapse 0.5s ease-in forwards; }
@@ -631,7 +686,7 @@ body[data-phase='shop'] {
 .mute-chip:hover { filter: brightness(1.3); }
 
 /* --- Title screen --- */
-.title-screen { justify-content: flex-end; padding-bottom: 9vh; }
+.title-screen { justify-content: flex-end; padding-bottom: 4vh; }
 .logo-img {
   width: min(560px, 82vw);
   filter: drop-shadow(0 4px 18px rgba(0, 0, 0, 0.85));
@@ -642,7 +697,7 @@ body[data-phase='shop'] {
   from { opacity: 0; transform: translateY(-18px) scale(1.04); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-.game-subtitle { letter-spacing: 6px; font-size: 17px; margin-bottom: 30px; text-shadow: 0 1px 4px #000; }
+.game-subtitle { letter-spacing: 6px; font-size: 17px; margin-bottom: 16px; text-shadow: 0 1px 4px #000; }
 .save-info { font-size: 15px; }
 
 .intent {
@@ -684,6 +739,9 @@ body[data-phase='shop'] {
   transition: opacity 0.12s ease-out;
   animation: hp-preview-pulse 0.9s ease-in-out infinite;
 }
+/* A lethal preview spans to the bar's left end: round it fully so it follows
+   the bar's rounded silhouette instead of a hard square edge (V3). */
+.hp-preview.to-zero { border-radius: 5px; }
 .enemy:hover .hp-preview { opacity: 1; }
 @keyframes hp-preview-pulse {
   50% { filter: brightness(1.35); }
@@ -753,9 +811,9 @@ body[data-phase='shop'] {
 .energy-orb {
   position: absolute;
   left: 20px;
-  bottom: 108px;
-  width: 96px;
-  height: 96px;
+  bottom: 112px;
+  width: 104px;
+  height: 104px;
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
@@ -770,7 +828,12 @@ body[data-phase='shop'] {
 }
 /* The count reads through a heavy text stroke — no dark disc masking the orb (B5). */
 .energy-orb span {
-  font-size: 26px;
+  font-size: 28px;
+  /* line-height 1 + a nudge up: the orb art's visual core sits ~3% above the
+     canvas centre and the line box allocates descender space, both pushing
+     the digits visibly low (V3). */
+  line-height: 1;
+  transform: translateY(-5px);
   paint-order: stroke fill;
   -webkit-text-stroke: 5px rgba(10, 8, 2, 0.85);
   text-shadow: 0 0 6px #000, 0 2px 3px #000;
@@ -823,7 +886,7 @@ body[data-phase='shop'] {
 .end-turn-wrap {
   position: absolute;
   right: 14px;
-  bottom: 170px;
+  bottom: 178px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -835,12 +898,12 @@ body[data-phase='shop'] {
 /* Fixed footprint: two content lines (label + energy hint) always fit, so the
    plate never grows or shifts whatever the state (B17). */
 .end-turn {
-  border: 15px solid transparent;
-  border-image: url('../art/frames/btn_stone.webp') 90 fill / 15px stretch;
+  border: 8px solid transparent;
+  border-image: url('../art/frames/btn_stone.webp') 60 fill / 8px stretch;
   background: none;
   color: #ffe9ad;
   width: 186px;
-  height: 84px;
+  height: 62px;
   padding: 2px 8px;
   display: flex;
   flex-direction: column;
@@ -853,8 +916,10 @@ body[data-phase='shop'] {
 .end-turn-label { font-size: 17px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
 .end-turn-sub { font-size: 12.5px; font-weight: 600; color: #ffd75e; line-height: 1.2; white-space: nowrap; }
 .end-turn:disabled { opacity: 0.55; cursor: default; filter: grayscale(0.4); }
-.end-turn.warn {
-  filter: drop-shadow(0 0 8px rgba(255, 200, 60, 0.35));
+/* Glow = "nothing left to play, end the turn"; the warn state only shows the
+   leftover-energy hint line without lighting up (V3: was inverted). */
+.end-turn.ready:not(:disabled) {
+  filter: brightness(1.08) drop-shadow(0 0 9px rgba(255, 200, 60, 0.5));
 }
 
 /* --- Turn banner & enemy-turn pacing --- */
@@ -901,13 +966,20 @@ body[data-phase='shop'] {
   40% { transform: scale(1.1); filter: brightness(1.6) drop-shadow(0 0 14px rgba(232, 185, 59, 0.7)); }
 }
 
-/* Played card flies off toward the discard corner before the state re-render. */
-.hand .card.in-hand.fly-out {
-  transform: translate(46vw, -60px) rotate(24deg) scale(0.4);
-  opacity: 0;
-  transition: transform 0.22s ease-in, opacity 0.22s ease-in;
+/* Card clones in flight toward a pile icon (played / end-of-turn sweep, V3).
+   Start/end transforms are set inline (they carry the card's fan angle). */
+.fx-layer .fx-card-fly {
+  position: fixed;
+  margin: 0;
+  z-index: 41;
+  transition: transform 0.38s cubic-bezier(0.5, 0, 0.9, 0.6), opacity 0.38s ease-in;
+  transition-delay: var(--fly-delay, 0ms);
   pointer-events: none;
-  z-index: 9;
+}
+/* The pile icon pops when a card lands on it. */
+.pile-corner.bump .pile-img { animation: pile-bump 0.25s ease-out; }
+@keyframes pile-bump {
+  40% { transform: scale(1.18); }
 }
 
 /* Collapsible battle log (debug-flavored; closed by default). */
@@ -915,7 +987,7 @@ body[data-phase='shop'] {
   position: absolute;
   right: 0;
   top: 2px;
-  background: rgba(34, 37, 45, 0.85);
+  background: rgba(0, 0, 0, 0.55);
   color: var(--muted);
   border: 1px solid var(--panel-2);
   border-radius: 7px;
@@ -932,26 +1004,39 @@ body[data-phase='shop'] {
   justify-content: center;
   padding: 16px 0 4px;
   margin: 0 205px; /* keep the corner HUD (orb, piles, end turn) clear (B4) */
-  min-height: 258px;
+  min-height: 272px;
 }
+/* Hand cards render 7% larger than the shared .card footprint (V3); every rule
+   that overrides transform below must fold the same scale back in. */
 .hand .card.in-hand {
   margin: 0 -16px;
-  transform: rotate(var(--rot, 0deg)) translateY(var(--lift, 0px));
+  transform: rotate(var(--rot, 0deg)) translateY(var(--lift, 0px)) scale(1.07);
   transform-origin: 50% 120%;
 }
 /* Only freshly drawn cards deal in; re-renders leave settled cards alone (C4). */
 .hand .card.in-hand.dealt {
-  animation: deal-in 0.3s ease-out backwards;
+  animation: draw-in 0.35s ease-out backwards;
   animation-delay: var(--deal, 0ms);
 }
 .hand .card.in-hand:hover {
-  transform: translateY(-46px) scale(1.18);
+  transform: translateY(-46px) scale(1.26);
   z-index: 9;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.7);
 }
-@keyframes deal-in {
-  from { opacity: 0; transform: translateY(70px) rotate(var(--rot, 0deg)) scale(0.85); }
-  to { opacity: 1; transform: rotate(var(--rot, 0deg)) translateY(var(--lift, 0px)); }
+/* FLIP reflow: survivors slide into their new fan slots after a play (V3). */
+.hand .card.in-hand.reflow {
+  transition: transform 0.28s cubic-bezier(0.22, 0.9, 0.35, 1), box-shadow 0.12s;
+}
+/* Draw: the card scales out of the draw pile in the bottom-left corner.
+   --from-x/--from-y are measured per card at render time; the defaults keep a
+   graceful rise-from-below if measuring ever fails (V3). */
+@keyframes draw-in {
+  from {
+    opacity: 0;
+    transform: translate(var(--from-x, 0px), var(--from-y, 70px)) rotate(-12deg) scale(0.35);
+  }
+  60% { opacity: 1; }
+  to { opacity: 1; transform: rotate(var(--rot, 0deg)) translateY(var(--lift, 0px)) scale(1.07); }
 }
 
 .card {
@@ -966,7 +1051,9 @@ body[data-phase='shop'] {
   position: relative;
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.12s, box-shadow 0.12s;
+  /* filter joins the transition so every dim/undim fades instead of snapping;
+     transform covers select/deselect and hover glides (V3). */
+  transition: transform 0.16s ease-out, box-shadow 0.12s, filter 0.18s ease-out;
   flex-shrink: 0;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
 }
@@ -984,24 +1071,37 @@ body[data-phase='shop'] {
 /* Selected = armed to play: soft golden glow, and the card dips low so the
    enemy HP bars stay readable while picking a target (B9/B10). */
 .hand .card.in-hand.selected {
-  transform: translateY(-14px) scale(1.08);
+  transform: translateY(-14px) scale(1.15);
   z-index: 9;
-  box-shadow: 0 0 16px 5px rgba(232, 185, 59, 0.6), 0 10px 26px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 10px 3px rgba(232, 185, 59, 0.85), 0 10px 26px rgba(0, 0, 0, 0.7);
 }
-.card.not-playable { opacity: 0.45; cursor: default; }
+/* Unplayable cards darken instead of fading: translucency let the fan's
+   overlapping edges show through each other (V3). */
+.card.not-playable { filter: brightness(0.55) saturate(0.6); cursor: default; }
+/* While aiming, every card but the selected one reads as disabled. Toggled by
+   patching the live DOM, so the filter transition fades it in and out. */
+.hand .card.in-hand.aim-dim { filter: brightness(0.55) saturate(0.6); cursor: default; }
+/* One-shot fade for a card that JUST lost playability across a re-render
+   (elements are rebuilt, so a transition has no previous state to run from). */
+.hand .card.in-hand.dim-fresh { animation: dim-in 0.22s ease-out; }
+@keyframes dim-in {
+  from { filter: brightness(1) saturate(1); }
+}
 
 /* Cost gem uses the same energy-orb art as the player's energy display (C2). */
 .cost {
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   background: url('../art/frames/energy_orb.webp') center / contain no-repeat;
   color: #fff8dc;
   font-weight: 800;
-  font-size: 17px;
+  font-size: 18px;
   text-align: center;
+  /* Slightly shorter than the gem: lifts the digit onto the orb's visual
+     centre, which sits a touch above the canvas centre (V3). */
   line-height: 38px;
   text-shadow: 0 0 5px #000, 0 1px 3px #000;
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
@@ -1009,7 +1109,7 @@ body[data-phase='shop'] {
 }
 
 .card-head {
-  margin-left: 32px;
+  margin-left: 36px;
   min-height: 40px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   padding-bottom: 3px;
@@ -1053,8 +1153,8 @@ body[data-phase='shop'] {
   overflow-y: auto;
   font-size: 12.5px;
   color: var(--muted);
-  background: rgba(34, 37, 45, 0.94);
-  border: 1px solid var(--panel-2);
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   padding: 10px;
   z-index: 5;
@@ -1082,15 +1182,21 @@ body[data-phase='shop'] {
 }
 .overlay-box h2 { margin: 0 0 18px; font-size: 28px; color: #ffe9ad; text-shadow: 0 1px 4px #000; }
 .overlay-box button {
-  border: 13px solid transparent;
-  border-image: url('../art/frames/btn_stone.webp') 90 fill / 13px stretch;
+  border: 8px solid transparent;
+  border-image: url('../art/frames/btn_stone.webp') 60 fill / 8px stretch;
   background: none;
   color: #ffe9ad;
-  padding: 10px 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 44px;
+  padding: 0 18px;
   font-size: 16px;
   line-height: 1.35;
   font-weight: 700;
   cursor: pointer;
+  margin: 0;
   text-shadow: 0 1px 3px #000;
 }
 
@@ -1115,14 +1221,15 @@ body[data-phase='shop'] {
   accent-color: var(--energy, #f5c451);
   cursor: pointer;
 }
-.menu-box .lang-btn { padding: 7px 16px; font-size: 14px; margin-left: 6px; }
+/* Toggles (language / mute / cheat ON-OFF) wear the same full-height plate as
+   every other overlay button (V3): only width and type size stay compact. */
+.menu-box .lang-btn { padding: 0 16px; font-size: 14px; margin-left: 6px; min-width: 96px; }
 /* Active toggle: brighten the stone itself — a translucent background would
    leak past the 9-slice art as a yellow rectangle (the IMG2 bug). */
 .menu-box .lang-btn.active {
   color: #ffe9ad;
   filter: brightness(1.3) drop-shadow(0 0 7px rgba(245, 196, 81, 0.55));
 }
-.title-settings { display: inline-flex; align-items: center; gap: 8px; }
 
 /* --- Instant custom tooltip (replaces the slow native title attribute) --- */
 .tooltip {
@@ -1157,10 +1264,21 @@ body[data-phase='shop'] {
   margin: 8px 0 18px;
 }
 .upgrade-arrow { font-size: 34px; color: var(--energy); text-shadow: 0 0 12px rgba(232, 185, 59, 0.6); }
-.upgrade-actions { display: flex; justify-content: center; gap: 14px; }
+.upgrade-actions { display: flex; justify-content: center; align-items: center; gap: 14px; }
 .confirm-text { color: var(--muted); font-size: 15px; margin: 0 0 8px; }
-.title-links { display: flex; gap: 12px; align-items: center; }
-.title-links .ghost-btn { margin-top: 22px; }
+/* Title menu: one vertical column, every plate the same fixed width (V3).
+   The top margin keeps the white blurb/save lines clear of the first plate. */
+.title-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: 340px;
+  margin-top: 22px;
+}
+/* The column's own gap owns the spacing; the dialog-screen margin must not stack. */
+.title-menu .primary-btn,
+.title-menu .ghost-btn { margin-top: 0; }
 
 /* --- Boot loading screen --- */
 body[data-phase='loading'] {

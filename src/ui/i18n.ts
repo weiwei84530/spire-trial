@@ -57,7 +57,7 @@ const STR = {
     zh: '發現進行中的冒險：第 {0} 幕・樓層 {1}／{2}，生命 {3}/{4}，金幣 {5}，牌組 {6} 張',
   },
   resume: { en: 'Continue adventure', zh: '繼續冒險' },
-  abandon: { en: 'Abandon save and restart', zh: '放棄存檔，重新開始' },
+  abandon: { en: 'Restart', zh: '重新開始' },
   start: { en: 'Begin the climb', zh: '開始冒險' },
   subtitle: { en: 'Deck-building · Three-act dungeon · One life', zh: '卡牌構築・三幕地城・一次生命' },
   // Top bar
@@ -150,13 +150,7 @@ const STR = {
   resumeGame: { en: 'Resume', zh: '繼續遊戲' },
   settings: { en: 'Settings', zh: '設定' },
   backToTitle: { en: 'Back to title', zh: '回到標題' },
-  restartRun: { en: 'Restart run', zh: '重新開始新的一局' },
-  confirmRestartTitle: { en: 'Restart the run?', zh: '重新開始新的一局？' },
-  confirmRestartText: {
-    en: 'Current progress will be lost and a fresh climb begins.',
-    zh: '目前的冒險進度將會清除，並開始全新的一局。',
-  },
-  confirmRestart: { en: 'Restart', zh: '確認重新開始' },
+  restartRun: { en: 'Restart', zh: '重新開始' },
   // Settings menu
   language: { en: 'Language', zh: '語言' },
   musicVolume: { en: 'Music volume', zh: '音樂音量' },
@@ -189,6 +183,7 @@ const STR = {
   cheatOneHit: { en: 'One-hit kills', zh: '玩家攻擊一擊必殺' },
   cheatGold: { en: 'Unlimited gold', zh: '金錢無上限' },
   cheatHp: { en: 'Invincible', zh: '生命值無限' },
+  cheatEnergy: { en: 'Unlimited energy', zh: '能量無限' },
   // Intent tooltips
   intentAttackTip: { en: 'Intends to attack for {0} damage', zh: '意圖攻擊：{0} 點傷害' },
   intentDefendTip: { en: 'Intends to gain {0} Block', zh: '意圖獲得 {0} 點格擋' },
