@@ -87,6 +87,9 @@ const STR = {
   actHeal: { en: 'Fully healed when entering the next act', zh: '進入下一幕時完全回復生命' },
   actChooseCard: { en: 'Choose a card, then descend into Act {0}:', zh: '選擇一張卡牌，然後前往第 {0} 幕：' },
   actSkip: { en: 'Skip the card and move on', zh: '跳過卡牌，直接前進' },
+  chooseRelic: { en: 'Choose a relic:', zh: '選擇一件遺物：' },
+  skipRelic: { en: 'Skip the relics', zh: '跳過遺物' },
+  relicTaken: { en: 'Relic claimed!', zh: '已取得遺物！' },
   // Event
   continue: { en: 'Continue', zh: '繼續' },
   // Shop
@@ -132,6 +135,29 @@ const STR = {
   muteAll: { en: 'Mute all', zh: '全部靜音' },
   // Loading screen
   loading: { en: 'Loading', zh: '載入中' },
+  // Abandon-save confirmation
+  confirmAbandonTitle: { en: 'Abandon this run?', zh: '放棄這輪冒險？' },
+  confirmAbandonText: {
+    en: 'The saved adventure will be deleted permanently.',
+    zh: '已儲存的冒險進度將被永久刪除。',
+  },
+  confirmAbandon: { en: 'Abandon it', zh: '確認放棄' },
+  // Campfire upgrade preview
+  upgradePreviewTitle: { en: 'Upgrade preview', zh: '升級預覽' },
+  confirmUpgrade: { en: 'Upgrade this card', zh: '升級這張卡' },
+  // Cheat menu
+  cheatMenu: { en: 'Cheat menu', zh: '作弊選單' },
+  cheatHint: {
+    en: 'Testing helpers. They disable nothing and save nothing.',
+    zh: '測試用功能，開關不會被存檔。' },
+  cheatOneHit: { en: 'One-hit kills', zh: '玩家攻擊一擊必殺' },
+  cheatGold: { en: 'Unlimited gold', zh: '金錢無上限' },
+  cheatHp: { en: 'Invincible', zh: '生命值無限' },
+  // Intent tooltips
+  intentAttackTip: { en: 'Intends to attack for {0} damage', zh: '意圖攻擊：{0} 點傷害' },
+  intentDefendTip: { en: 'Intends to gain {0} Block', zh: '意圖獲得 {0} 點格擋' },
+  intentBuffTip: { en: 'Intends to gain: {0}', zh: '意圖獲得：{0}' },
+  intentDebuffTip: { en: 'Intends to inflict: {0}', zh: '意圖對你施加：{0}' },
 } satisfies Record<string, Record<Locale, string>>;
 
 export function t(key: keyof typeof STR, ...args: (string | number)[]): string {
@@ -161,6 +187,97 @@ const STATUS: Record<string, Record<Locale, string>> = {
 
 export function statusName(id: string): string {
   return STATUS[id]?.[current] ?? id;
+}
+
+/** Rules text for status tooltips (N = current stacks). */
+const STATUS_DESC: Record<string, Record<Locale, string>> = {
+  vulnerable: { en: 'Takes 50% more attack damage.', zh: '受到的攻擊傷害增加 50%。' },
+  weak: { en: 'Deals 25% less attack damage.', zh: '造成的攻擊傷害減少 25%。' },
+  frail: { en: 'Gains 25% less Block.', zh: '獲得的格擋減少 25%。' },
+  strength: { en: 'Attacks deal +N damage.', zh: '攻擊傷害 +N。' },
+  dexterity: { en: 'Gain +N Block from cards.', zh: '卡牌獲得的格擋 +N。' },
+  poison: { en: 'Loses N HP at the start of its turn, then N drops by 1.', zh: '回合開始時失去 N 點生命，之後層數減 1。' },
+  ritual: { en: 'Gains N Strength at the end of its turn.', zh: '回合結束時獲得 N 層力量。' },
+  metallicize: { en: 'Gains N Block at the end of its turn.', zh: '回合結束時獲得 N 點格擋。' },
+  thorns: { en: 'Attackers take N damage.', zh: '攻擊者受到 N 點傷害。' },
+  energized: { en: 'Gains N extra energy each turn.', zh: '每回合額外獲得 N 點能量。' },
+  barricade: { en: 'Block is not removed at the start of the turn.', zh: '格擋不再於回合開始時消失。' },
+  noxious: { en: 'Applies N Poison to all enemies each turn.', zh: '每回合對所有敵人施加 N 層中毒。' },
+};
+
+export function statusDesc(id: string, stacks: number): string {
+  const text = STATUS_DESC[id]?.[current];
+  return text ? text.replace(/N/g, String(stacks)) : '';
+}
+
+/** zh-TW card names (engine names stay English; an upgraded card keeps its "+"). */
+const CARD_ZH: Record<string, string> = {
+  strike: '打擊',
+  defend: '防禦',
+  bash: '痛擊',
+  cleave: '順劈',
+  pommel_strike: '劍柄打擊',
+  twin_strike: '雙重打擊',
+  iron_wave: '鐵斬波',
+  shrug_it_off: '不痛不癢',
+  deadly_venom: '致命毒液',
+  inflame: '燃心',
+  bludgeon: '重毆',
+  offering: '獻祭',
+  anger: '憤怒',
+  sucker_punch: '偷襲重拳',
+  wild_strike: '狂野打擊',
+  reckless_charge: '魯莽衝鋒',
+  backflip: '後空翻',
+  heavy_armor: '重型鎧甲',
+  bloodletting: '放血',
+  battle_trance: '戰鬥專注',
+  clothesline: '金勾臂',
+  uppercut: '上勾拳',
+  hemokinesis: '御血術',
+  pummel: '連環重擊',
+  venom_strike: '淬毒突刺',
+  dash: '疾衝',
+  disarm: '繳械',
+  flex: '屈伸',
+  shockwave: '震盪波',
+  terror: '恐懼',
+  shiv: '小刀',
+  blade_dance: '劍刃之舞',
+  cloak_and_dagger: '斗篷與匕首',
+  adrenaline: '腎上腺素',
+  impervious: '無懈可擊',
+  demon_form: '惡魔形態',
+  berserk: '狂暴',
+  quick_slash: '迅捷斬擊',
+  flurry: '疾風連斬',
+  heavy_blade: '沉重之刃',
+  trip: '絆倒',
+  emergency_guard: '緊急防護',
+  intimidate: '威嚇',
+  noxious_blast: '劇毒爆裂',
+  skewer: '穿刺連擊',
+  entrench: '固守',
+  seeing_red: '目露凶光',
+  footwork: '靈巧步法',
+  caltrops: '鐵蒺藜',
+  die_die_die: '去死去死去死',
+  barricade: '路障',
+  noxious_fumes: '劇毒煙霧',
+  wound: '傷口',
+  burn: '燒傷',
+  injury: '創傷',
+  whirlwind: '旋風斬',
+  metallicize: '金屬化',
+  dramatic_entrance: '華麗登場',
+};
+
+/** Localized display name for a resolved card def (keeps the upgrade "+"). */
+export function cardName(def: { id: string; name: string }): string {
+  if (current !== 'zh') return def.name;
+  const zh = CARD_ZH[def.id];
+  if (!zh) return def.name;
+  return def.name.endsWith('+') ? `${zh}+` : zh;
 }
 
 const CARD_TYPE: Record<string, Record<Locale, string>> = {
@@ -228,6 +345,16 @@ const RELIC_DESC_EN: Record<string, string> = {
   blood_vial: 'At the start of each combat, heal 2 HP.',
   bronze_scales: 'At the start of each combat, gain 3 Thorns.',
   oddly_smooth_stone: 'At the start of each combat, gain 1 Dexterity.',
+  lantern: 'At the start of each combat, gain 1 Energy.',
+  bag_of_marbles: 'At the start of each combat, apply 1 Vulnerable to all enemies.',
+  red_mask: 'At the start of each combat, apply 1 Weak to all enemies.',
+  thread_and_needle: 'At the start of each combat, gain 2 Metallicize.',
+  twisted_funnel: 'At the start of each combat, apply 4 Poison to all enemies.',
+  strawberry: 'On pickup, raise your max HP by 7.',
+  mango: 'On pickup, raise your max HP by 14.',
+  whetstone: 'On pickup, upgrade 1 random card.',
+  potion_belt: 'Gain 2 extra potion slots.',
+  meat_on_the_bone: 'After each combat victory, heal 4 HP.',
 };
 
 export function relicDesc(id: string, zhDesc: string): string {

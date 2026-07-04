@@ -49,7 +49,10 @@ describe('relics', () => {
   it('every relic has a description and a behavior', () => {
     for (const def of Object.values(RELICS)) {
       expect(def.desc.length).toBeGreaterThan(0);
-      expect(def.battleStart || def.victoryHeal, `${def.id} does nothing`).toBeTruthy();
+      expect(
+        def.battleStart || def.victoryHeal || def.maxHpBonus || def.upgradeOnPickup || def.potionSlots,
+        `${def.id} does nothing`,
+      ).toBeTruthy();
     }
   });
 });

@@ -52,6 +52,30 @@ describe('map generation', () => {
     }
   });
 
+  it('follows the StS room rules: forked start, no chained specials, no rest under the campfire row', () => {
+    for (let seed = 0; seed < 50; seed++) {
+      const map = generateMap(new Rng(seed));
+      const rowCount = map.rows.length;
+
+      // At least two distinct starting nodes (the first two walks fork).
+      expect(map.rows[0]!.length).toBeGreaterThanOrEqual(2);
+
+      // The row right below the guaranteed campfire row never has a rest site.
+      for (const node of map.rows[rowCount - 3]!) expect(node.kind).not.toBe('rest');
+
+      // Elite / shop / rest never directly follow the same kind along a path.
+      for (let r = 0; r < rowCount - 2; r++) {
+        for (const node of map.rows[r]!) {
+          if (!['elite', 'shop', 'rest'].includes(node.kind)) continue;
+          if (r + 1 === rowCount - 2) continue; // next row is the forced campfire row
+          for (const id of node.next) {
+            expect(getNode(map, id).kind).not.toBe(node.kind);
+          }
+        }
+      }
+    }
+  });
+
   it('edges never cross between adjacent rows', () => {
     for (let seed = 0; seed < 50; seed++) {
       const map = generateMap(new Rng(seed));

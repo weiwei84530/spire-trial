@@ -17,73 +17,140 @@ export interface GameMap {
 }
 
 export interface MapOptions {
+  /** Total rows including the boss row. */
   rows?: number;
   cols?: number;
-}
-
-const ELITE_MIN_ROW = 3;
-const ELITE_CHANCE = 0.16;
-const REST_CHANCE = 0.12;
-const SHOP_CHANCE = 0.09;
-const EVENT_CHANCE = 0.18;
-
-function kindFor(row: number, rowCount: number, rng: Rng): NodeKind {
-  if (row === 0) return 'battle';
-  if (row === rowCount - 1) return 'boss';
-  if (row === rowCount - 2) return 'rest'; // guaranteed campfire before the boss
-  if (row >= ELITE_MIN_ROW && rng.next() < ELITE_CHANCE) return 'elite';
-  if (row >= 2 && rng.next() < REST_CHANCE) return 'rest';
-  if (row >= 1 && rng.next() < SHOP_CHANCE) return 'shop';
-  if (row >= 1 && rng.next() < EVENT_CHANCE) return 'event';
-  return 'battle';
+  /** Number of bottom-to-top path walks carving the map. */
+  walks?: number;
 }
 
 /**
- * Generates a branching act map, StS-style but simplified:
- * 2-3 nodes per row, monotone (non-crossing) edges between adjacent rows,
- * single boss node on top. Every node is reachable from row 0 and every
- * path ends at the boss, by construction.
+ * Room-kind weights and constraints, scaled from the original game's
+ * documented generator (7x15 grid, 6 walks; see docs/DESIGN.md for sources):
+ * - Elites and rests never spawn in the early rows.
+ * - The row right before the boss is always a campfire; the row below it never is.
+ * - Elite / shop / rest rooms never chain along a path, and siblings from the
+ *   same parent avoid duplicating a special kind.
+ */
+const ELITE_CHANCE = 0.1;
+const REST_CHANCE = 0.13;
+const SHOP_CHANCE = 0.06;
+const EVENT_CHANCE = 0.22;
+const SPECIAL_MIN_ROW_RATIO = 0.35; // elites/rests only past ~this fraction of the act
+const NO_CHAIN: readonly NodeKind[] = ['elite', 'shop', 'rest'];
+
+/**
+ * Generates a branching act map with the original game's algorithm, scaled
+ * down: several random walks climb the grid one row at a time (steps of -1/0/+1
+ * column), edges never cross, the first two walks start on different columns,
+ * and every top-row node feeds the single boss node.
  */
 export function generateMap(rng: Rng, opts: MapOptions = {}): GameMap {
   const rowCount = opts.rows ?? 10;
-  const colCount = opts.cols ?? 4;
+  const colCount = opts.cols ?? 7;
+  const walkCount = opts.walks ?? 6;
+  const gridRows = rowCount - 1; // walkable rows; the final row is the boss
 
-  const rows: MapNode[][] = [];
-  for (let r = 0; r < rowCount; r++) {
-    let activeCols: number[];
-    if (r === rowCount - 1) {
-      activeCols = [Math.floor(colCount / 2)];
-    } else {
-      const count = rng.int(2, Math.min(3, colCount));
-      const all = Array.from({ length: colCount }, (_, i) => i);
-      rng.shuffle(all);
-      activeCols = all.slice(0, count).sort((a, b) => a - b);
+  const present: boolean[][] = Array.from({ length: gridRows }, () =>
+    Array<boolean>(colCount).fill(false),
+  );
+  /** edges[r] holds [fromCol, toCol] pairs between grid rows r and r+1. */
+  const edges: [number, number][][] = Array.from({ length: gridRows - 1 }, () => []);
+
+  const hasEdge = (r: number, from: number, to: number) =>
+    edges[r]!.some(([a, b]) => a === from && b === to);
+  /** Two edges cross iff their column deltas straddle each other. */
+  const crosses = (r: number, from: number, to: number) =>
+    edges[r]!.some(([a, b]) => (a - from) * (b - to) < 0);
+
+  let firstStart = -1;
+  for (let walk = 0; walk < walkCount; walk++) {
+    let col = rng.int(0, colCount - 1);
+    // The first two walks must start on different columns (guarantees a real fork).
+    if (walk === 1) {
+      while (col === firstStart) col = rng.int(0, colCount - 1);
     }
-    rows.push(
-      activeCols.map((col) => ({
-        id: `r${r}c${col}`,
-        row: r,
-        col,
-        kind: kindFor(r, rowCount, rng),
-        next: [],
-      })),
-    );
+    if (walk === 0) firstStart = col;
+    present[0]![col] = true;
+    for (let r = 0; r < gridRows - 1; r++) {
+      const candidates = [col - 1, col, col + 1].filter(
+        (c) => c >= 0 && c < colCount && !crosses(r, col, c),
+      );
+      // A straight step can never cross a +/-1 edge, so candidates is never empty.
+      const to = candidates.length > 0 ? rng.pick(candidates) : col;
+      if (!hasEdge(r, col, to)) edges[r]!.push([col, to]);
+      present[r + 1]![to] = true;
+      col = to;
+    }
   }
 
-  // Monotone two-pointer merge between adjacent rows: covers every node on
-  // both rows with no crossing edges.
-  for (let r = 0; r < rowCount - 1; r++) {
-    const a = rows[r]!;
-    const b = rows[r + 1]!;
-    let i = 0;
-    let j = 0;
-    a[i]!.next.push(b[j]!.id);
-    while (i < a.length - 1 || j < b.length - 1) {
-      const na = a.length === 1 ? 1 : i / (a.length - 1);
-      const nb = b.length === 1 ? 1 : j / (b.length - 1);
-      if (j < b.length - 1 && (nb <= na || i === a.length - 1)) j++;
-      else i++;
-      a[i]!.next.push(b[j]!.id);
+  // Materialize nodes row by row (kinds assigned afterwards, top-down rules).
+  const rows: MapNode[][] = [];
+  for (let r = 0; r < gridRows; r++) {
+    const rowNodes: MapNode[] = [];
+    for (let c = 0; c < colCount; c++) {
+      if (present[r]![c]) {
+        rowNodes.push({ id: `r${r}c${c}`, row: r, col: c, kind: 'battle', next: [] });
+      }
+    }
+    rows.push(rowNodes);
+  }
+  const bossCol = Math.floor(colCount / 2);
+  const boss: MapNode = { id: `r${gridRows}c${bossCol}`, row: gridRows, col: bossCol, kind: 'boss', next: [] };
+  rows.push([boss]);
+
+  const nodeAt = (r: number, c: number) => rows[r]!.find((n) => n.col === c)!;
+  for (let r = 0; r < gridRows - 1; r++) {
+    for (const [from, to] of edges[r]!) {
+      const node = nodeAt(r, from);
+      const target = nodeAt(r + 1, to).id;
+      if (!node.next.includes(target)) node.next.push(target);
+    }
+    for (const node of rows[r]!) node.next.sort();
+  }
+  for (const node of rows[gridRows - 1]!) node.next.push(boss.id);
+
+  assignKinds(rows, gridRows, rng);
+  return { rows };
+}
+
+function assignKinds(rows: MapNode[][], gridRows: number, rng: Rng): void {
+  const specialMinRow = Math.max(2, Math.round(gridRows * SPECIAL_MIN_ROW_RATIO));
+  const parentsOf = (node: MapNode, r: number): MapNode[] =>
+    r === 0 ? [] : rows[r - 1]!.filter((p) => p.next.includes(node.id));
+
+  const rollKind = (row: number): NodeKind => {
+    if (row >= specialMinRow && rng.next() < ELITE_CHANCE) return 'elite';
+    if (row >= specialMinRow && row !== gridRows - 2 && rng.next() < REST_CHANCE) return 'rest';
+    if (rng.next() < SHOP_CHANCE) return 'shop';
+    if (rng.next() < EVENT_CHANCE) return 'event';
+    return 'battle';
+  };
+
+  for (let r = 0; r < gridRows; r++) {
+    for (const node of rows[r]!) {
+      if (r === 0) continue; // entrance row: battles only
+      if (r === gridRows - 1) {
+        node.kind = 'rest'; // guaranteed campfire right before the boss
+        continue;
+      }
+      const parents = parentsOf(node, r);
+      let kind = rollKind(r);
+      for (let attempt = 0; attempt < 12; attempt++) {
+        const chained =
+          NO_CHAIN.includes(kind) && parents.some((p) => p.kind === kind);
+        const siblingDup =
+          kind !== 'battle' &&
+          parents.some((p) =>
+            p.next.some((id) => {
+              const sibling = rows[r]!.find((n) => n.id === id);
+              return sibling && sibling !== node && sibling.kind === kind;
+            }),
+          );
+        if (!chained && !siblingDup) break;
+        kind = rollKind(r);
+      }
+      node.kind = kind;
     }
   }
 
@@ -91,7 +158,7 @@ export function generateMap(rng: Rng, opts: MapOptions = {}): GameMap {
   // middle-row battle node (never row 0, the pre-boss rest row, or the boss).
   const candidates = () =>
     rows
-      .slice(1, rowCount - 2)
+      .slice(1, gridRows - 1)
       .flat()
       .filter((n) => n.kind === 'battle');
   for (const kind of ['shop', 'event'] as const) {
@@ -100,8 +167,6 @@ export function generateMap(rng: Rng, opts: MapOptions = {}): GameMap {
       if (pool.length > 0) rng.pick(pool).kind = kind;
     }
   }
-
-  return { rows };
 }
 
 export function getNode(map: GameMap, id: string): MapNode {

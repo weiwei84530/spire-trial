@@ -54,6 +54,8 @@ export interface RunSave {
   relics: string[];
   potions: string[];
   stats: RunStats;
+  /** Adaptive potion drop chance; absent in older saves (defaults to base). */
+  potionChance?: number;
 }
 
 interface ActEncounters {
@@ -145,8 +147,11 @@ const ACTS: Record<number, ActEncounters> = { 1: ACT_1, 2: ACT_2, 3: ACT_3 };
 
 const REST_HEAL_RATIO = 0.3;
 const REWARD_CHOICES = 3;
-const MAX_POTIONS = 3;
-const POTION_DROP_CHANCE = 0.3;
+const BASE_POTION_SLOTS = 3;
+/** StS-style adaptive potion drops: 40% base, -10% on a drop, +10% on a miss. */
+const POTION_CHANCE_BASE = 0.4;
+const POTION_CHANCE_STEP = 0.1;
+const BOSS_RELIC_CHOICES = 3;
 const CARD_REMOVE_PRICE = 75;
 const RARITY_WEIGHTS: [CardRarity, number][] = [
   ['common', 60],
@@ -163,8 +168,11 @@ const CARD_PRICES: Record<string, [number, number]> = {
 export interface RewardBundle {
   gold: number;
   cards: string[];
+  /** A relic granted outright (elite drops). */
   relic: string | null;
   potion: string | null;
+  /** Boss loot: pick one of these relics (null once picked or not offered). */
+  relicChoices: string[] | null;
 }
 
 export interface ShopStock {
@@ -196,8 +204,24 @@ export class Run {
   /** Result text of the chosen event option, shown before returning to the map. */
   eventResult: string | null = null;
   shop: ShopStock | null = null;
+  /** Adaptive potion drop chance (StS-style pity), reset each act. */
+  potionChance = POTION_CHANCE_BASE;
+  /** Testing cheats, toggled from the cheat menu. Never persisted. */
+  readonly cheats = { oneHitKill: false, infiniteGold: false, infiniteHp: false };
   /** Player HP when the current battle started, for damage-taken stats. */
   private battleStartHp = 0;
+
+  /** Potion capacity, including relic bonuses (Potion Belt). */
+  get maxPotions(): number {
+    return (
+      BASE_POTION_SLOTS + this.relics.reduce((sum, id) => sum + (getRelicDef(id).potionSlots ?? 0), 0)
+    );
+  }
+
+  /** True if the player can pay `price` (always true with the gold cheat on). */
+  canAfford(price: number): boolean {
+    return this.cheats.infiniteGold || this.gold >= price;
+  }
 
   constructor(seed: number, save?: RunSave) {
     if (save) {
@@ -213,6 +237,7 @@ export class Run {
       this.currentNodeId = save.currentNodeId;
       this.visited = [...save.visited];
       this.stats = { ...save.stats };
+      this.potionChance = save.potionChance ?? POTION_CHANCE_BASE;
       ensureInstanceIdAbove(Math.max(0, ...save.deck.map((c) => c.instanceId)));
       return;
     }
@@ -240,6 +265,7 @@ export class Run {
       relics: [...this.relics],
       potions: [...this.potions],
       stats: { ...this.stats },
+      potionChance: this.potionChance,
     };
   }
 
@@ -292,6 +318,8 @@ export class Run {
       startEffects,
       enemyHpScale: actHpScale(this.act),
     });
+    // Shared reference: cheat toggles apply to the battle in progress too.
+    this.battle.cheats = this.cheats;
     this.phase = 'battle';
   }
 
@@ -336,12 +364,16 @@ export class Run {
         this.phase = 'victory';
         return;
       }
-      // Act cleared: boss loot, then pickReward() advances to the next act.
+      // Act cleared: boss loot (rare cards + pick-one-of-three relics, like StS).
       const bossGold = this.rng.int(60, 75);
       this.gold += bossGold;
-      const relic = this.randomUnownedRelic();
-      if (relic) this.relics.push(relic);
-      this.reward = { gold: bossGold, cards: this.rollCardRewards(), relic, potion: null };
+      this.reward = {
+        gold: bossGold,
+        cards: this.rollCardRewards(true),
+        relic: null,
+        potion: null,
+        relicChoices: this.randomUnownedRelics(BOSS_RELIC_CHOICES),
+      };
       this.phase = 'actTransition';
       return;
     }
@@ -352,15 +384,46 @@ export class Run {
     let relic: string | null = null;
     if (isElite) {
       relic = this.randomUnownedRelic();
-      if (relic) this.relics.push(relic);
+      if (relic) this.gainRelic(relic);
     }
+    // Adaptive potion pity: the roll always happens so the chance keeps adjusting.
     let potion: string | null = null;
-    if (this.rng.next() < POTION_DROP_CHANCE && this.potions.length < MAX_POTIONS) {
-      potion = this.rng.pick(POTION_IDS);
-      this.potions.push(potion);
+    if (this.rng.next() < this.potionChance) {
+      this.potionChance = Math.max(0, this.potionChance - POTION_CHANCE_STEP);
+      if (this.potions.length < this.maxPotions) {
+        potion = this.rng.pick(POTION_IDS);
+        this.potions.push(potion);
+      }
+    } else {
+      this.potionChance = Math.min(1, this.potionChance + POTION_CHANCE_STEP);
     }
-    this.reward = { gold, cards: this.rollCardRewards(), relic, potion };
+    this.reward = { gold, cards: this.rollCardRewards(), relic, potion, relicChoices: null };
     this.phase = 'reward';
+  }
+
+  /** Adds a relic and fires its pickup triggers (max HP, upgrades). */
+  private gainRelic(id: string): void {
+    this.relics.push(id);
+    const def = getRelicDef(id);
+    if (def.maxHpBonus) {
+      this.maxHp += def.maxHpBonus;
+      this.hp += def.maxHpBonus;
+    }
+    for (let i = 0; i < (def.upgradeOnPickup ?? 0); i++) {
+      const upgradable = this.deck.map((_, idx) => idx).filter((idx) => this.canUpgrade(idx));
+      if (upgradable.length === 0) break;
+      this.deck[this.rng.pick(upgradable)]!.upgraded = true;
+    }
+  }
+
+  /** Take one of the offered boss relics (or null to skip them all). */
+  pickRewardRelic(id: string | null): void {
+    if (!this.reward?.relicChoices) throw new Error('No relic choice pending');
+    if (id !== null) {
+      if (!this.reward.relicChoices.includes(id)) throw new Error(`${id} was not offered`);
+      this.gainRelic(id);
+    }
+    this.reward.relicChoices = null;
   }
 
   /** Use a held potion during battle. Enemy-targeted potions need targetIndex. */
@@ -375,7 +438,8 @@ export class Run {
     if (this.battle.state.phase !== 'playerTurn') this.resolveBattle();
   }
 
-  private rollCardRewards(): string[] {
+  /** Boss card rewards are all-rare, matching the original. */
+  private rollCardRewards(rareOnly = false): string[] {
     const byRarity = (rarity: CardRarity) =>
       Object.values(CARDS)
         .filter((c) => c.rarity === rarity && !c.unplayable)
@@ -384,13 +448,16 @@ export class Run {
     const picks: string[] = [];
     let guard = 50;
     while (picks.length < REWARD_CHOICES && guard-- > 0) {
-      let roll = this.rng.next() * totalWeight;
-      let rarity: CardRarity = 'common';
-      for (const [r, w] of RARITY_WEIGHTS) {
-        roll -= w;
-        if (roll < 0) {
-          rarity = r;
-          break;
+      let rarity: CardRarity = 'rare';
+      if (!rareOnly) {
+        let roll = this.rng.next() * totalWeight;
+        rarity = 'common';
+        for (const [r, w] of RARITY_WEIGHTS) {
+          roll -= w;
+          if (roll < 0) {
+            rarity = r;
+            break;
+          }
         }
       }
       const pool = byRarity(rarity).filter((id) => !picks.includes(id));
@@ -402,6 +469,17 @@ export class Run {
   private randomUnownedRelic(): string | null {
     const pool = Object.keys(RELICS).filter((id) => !this.relics.includes(id));
     return pool.length > 0 ? this.rng.pick(pool) : null;
+  }
+
+  /** Up to n distinct unowned relics (boss pick-one-of-three). */
+  private randomUnownedRelics(n: number): string[] {
+    const pool = Object.keys(RELICS).filter((id) => !this.relics.includes(id));
+    const picks: string[] = [];
+    while (picks.length < n && pool.length > 0) {
+      const idx = this.rng.int(0, pool.length - 1);
+      picks.push(pool.splice(idx, 1)[0]!);
+    }
+    return picks;
   }
 
   /** Take one offered card (or null to skip); returns to the map or starts the next act. */
@@ -426,6 +504,7 @@ export class Run {
     this.map = generateMap(this.rng);
     this.currentNodeId = null;
     this.visited.length = 0;
+    this.potionChance = POTION_CHANCE_BASE;
     this.phase = 'map';
   }
 
@@ -472,7 +551,7 @@ export class Run {
     }
     if (choice.gainRelic) {
       const relic = this.randomUnownedRelic();
-      if (relic) this.relics.push(relic);
+      if (relic) this.gainRelic(relic);
     }
     if (choice.gainCard) this.deck.push(makeCard(choice.gainCard));
     if (choice.upgradeRandom) {
@@ -514,6 +593,7 @@ export class Run {
   }
 
   private spend(price: number): void {
+    if (this.cheats.infiniteGold) return; // cheat: purchases are free
     if (this.gold < price) throw new Error('Not enough gold');
     this.gold -= price;
   }
@@ -532,7 +612,7 @@ export class Run {
     const item = this.shop.relics[index];
     if (!item || item.sold) throw new Error('Not for sale');
     this.spend(item.price);
-    this.relics.push(item.id);
+    this.gainRelic(item.id);
     item.sold = true;
   }
 
@@ -540,7 +620,7 @@ export class Run {
     if (this.phase !== 'shop' || !this.shop) throw new Error('Not in shop');
     const item = this.shop.potions[index];
     if (!item || item.sold) throw new Error('Not for sale');
-    if (this.potions.length >= MAX_POTIONS) throw new Error('Potion slots full');
+    if (this.potions.length >= this.maxPotions) throw new Error('Potion slots full');
     this.spend(item.price);
     this.potions.push(item.id);
     item.sold = true;

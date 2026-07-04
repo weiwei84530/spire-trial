@@ -121,7 +121,13 @@ describe('multi-act runs', () => {
     const oldMap = run.map;
     run.resolveBattle();
     expect(run.phase).toBe('actTransition');
-    expect(run.reward!.relic).not.toBeNull();
+    // Boss loot is a pick-one-of-three relic choice with all-rare card rewards.
+    expect(run.reward!.relicChoices).toHaveLength(3);
+    for (const id of run.reward!.cards) expect(CARDS[id]!.rarity).toBe('rare');
+    const relicsBefore = run.relics.length;
+    run.pickRewardRelic(run.reward!.relicChoices![0]!);
+    expect(run.relics).toHaveLength(relicsBefore + 1);
+    expect(run.reward!.relicChoices).toBeNull();
 
     run.pickReward(run.reward!.cards[0]!);
     expect(run.act).toBe(2);

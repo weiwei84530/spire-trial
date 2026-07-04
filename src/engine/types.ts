@@ -123,6 +123,44 @@ export interface EnemyState extends Actor {
 
 export type BattlePhase = 'playerTurn' | 'victory' | 'defeat';
 
+/** Who a battle event refers to. Enemy indices are stable: `enemies` is append-only. */
+export type ActorRef = 'player' | { enemy: number };
+
+/** Why HP was lost. 'attack'/'thorns'/'burn' respect block; 'poison'/'loseHp' ignore it. */
+export type DamageCause = 'attack' | 'thorns' | 'burn' | 'poison' | 'loseHp';
+
+/**
+ * Structured, ordered event stream emitted by the engine as it resolves actions.
+ * Mutating events carry post-values (`hpAfter`, `blockAfter`, `total`) so a consumer
+ * can patch a view idempotently by replaying them in order.
+ */
+export type BattleEvent =
+  | { type: 'turnStart'; turn: number }
+  | { type: 'playerActionStart'; cardDefId: string; cardType: CardType; target?: number }
+  | { type: 'enemyActionStart'; enemy: number; moveId: string; intent: IntentKind }
+  | {
+      type: 'damage';
+      source: ActorRef;
+      target: ActorRef;
+      cause: DamageCause;
+      amount: number;
+      blocked: number;
+      hpLoss: number;
+      hpAfter: number;
+      blockAfter: number;
+    }
+  | { type: 'blockGain'; target: ActorRef; amount: number; blockAfter: number }
+  | { type: 'statusChange'; target: ActorRef; status: StatusId; delta: number; total: number }
+  | { type: 'heal'; target: ActorRef; amount: number; hpAfter: number }
+  | { type: 'energy'; delta: number; total: number }
+  | { type: 'draw'; count: number; handSize: number }
+  | { type: 'discardHand'; count: number }
+  | { type: 'addCard'; cardDefId: string; destination: PileId; count: number }
+  | { type: 'enemyDeath'; enemy: number }
+  | { type: 'enemySpawn'; enemy: number; defId: string }
+  | { type: 'phaseTrigger'; enemy: number }
+  | { type: 'battleEnd'; result: 'victory' | 'defeat' };
+
 export interface BattleState {
   turn: number;
   phase: BattlePhase;
@@ -130,4 +168,6 @@ export interface BattleState {
   enemies: EnemyState[];
   /** Human-readable event log for UI and debugging. */
   log: string[];
+  /** Append-only structured event stream; consumers keep a cursor into it. */
+  events: BattleEvent[];
 }

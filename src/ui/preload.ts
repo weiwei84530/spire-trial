@@ -15,13 +15,16 @@ import { sound, type SfxName } from './sound';
 const BASE = import.meta.env.BASE_URL;
 
 const ICONS = [
-  'node_battle', 'node_elite', 'node_rest', 'node_event', 'node_shop', 'node_boss',
+  'node_battle', 'node_elite', 'node_rest', 'node_event', 'node_shop', 'node_boss', 'node_ring',
   'ui_hp', 'ui_gold', 'ui_deck', 'ui_floor', 'ui_menu', 'ui_sound_on', 'ui_sound_off',
-  'ui_draw', 'ui_discard', 'ui_exhaust',
+  'ui_draw', 'ui_discard', 'ui_exhaust', 'block_shield',
   'intent_attack', 'intent_defend', 'intent_buff', 'intent_debuff',
+  'status_vulnerable', 'status_weak', 'status_frail', 'status_strength', 'status_dexterity',
+  'status_poison', 'status_ritual', 'status_metallicize', 'status_thorns', 'status_energized',
+  'status_barricade', 'status_noxious',
 ];
 const BACKGROUNDS = ['title', 'battle', 'map', 'rest', 'shop', 'hero', 'logo', 'logo_en'];
-const FRAMES = ['btn_stone', 'energy_orb', 'frame_attack', 'frame_skill', 'frame_power', 'frame_neutral'];
+const FRAMES = ['btn_stone', 'energy_orb', 'panel_stone', 'frame_attack', 'frame_skill', 'frame_power', 'frame_neutral'];
 const SFX: SfxName[] = [
   'click', 'card', 'draw', 'hit', 'block', 'hurt', 'heal', 'potion',
   'gold', 'upgrade', 'node', 'boss', 'victory', 'defeat',

@@ -168,30 +168,37 @@ body[data-phase='shop'] {
   padding: 4px 18px;
   background: rgba(10, 11, 15, 0.5);
 }
-.heading-icon { width: 34px; height: 34px; object-fit: contain; vertical-align: -8px; margin-right: 4px; }
+.heading-icon { width: 52px; height: 52px; object-fit: contain; vertical-align: -14px; margin-right: 6px; }
 
 /* --- Map screen --- */
 .map-screen { flex: 1; text-align: center; }
 .map-screen h2 { font-weight: 600; font-size: 23px; color: var(--text); text-shadow: 0 1px 4px #000; }
 .map-svg { max-height: 82vh; width: 100%; }
 
-.map-edge { stroke: #3a3f4a; stroke-width: 2; }
-.map-edge.walked { stroke: var(--energy); opacity: 0.5; }
+/* Hand-drawn trail dots instead of straight programmatic lines. */
+.map-edge {
+  stroke: #7a6a4c;
+  stroke-width: 3.5;
+  stroke-dasharray: 0.5 11;
+  stroke-linecap: round;
+  opacity: 0.75;
+}
+.map-edge.walked { stroke: var(--energy); opacity: 0.85; }
 
-.map-node circle { fill: rgba(30, 32, 40, 0.92); stroke: #4a4f5a; stroke-width: 2; }
-.map-node.kind-boss circle { stroke: var(--hp); }
-.map-node.kind-elite circle { stroke: #7a5a6a; }
-.map-node.visited circle { fill: rgba(20, 22, 27, 0.9); stroke: #333; }
-.map-node image { filter: brightness(1.5) saturate(1.1); }
-.map-node.visited image { opacity: 0.35; filter: brightness(1.2) grayscale(0.8); }
-.map-node.current circle { stroke: #fff; stroke-width: 3; }
+/* Nodes: painted bronze medallion ring + emblem over a dark backing disc. */
+.map-node circle { fill: rgba(22, 18, 12, 0.88); stroke: none; }
+.map-node .node-ring { filter: brightness(1.15); }
+.map-node.kind-boss .node-ring { filter: brightness(1.1) sepia(0.4) hue-rotate(-30deg) saturate(2); }
+.map-node.kind-elite .node-ring { filter: brightness(1.05) sepia(0.3) hue-rotate(220deg) saturate(1.6); }
+.map-node image:not(.node-ring) { filter: brightness(1.55) saturate(1.15); }
+.map-node.visited image { opacity: 0.35; filter: brightness(1.1) grayscale(0.85); }
+.map-node.current .node-ring { filter: brightness(1.9) drop-shadow(0 0 4px rgba(255, 255, 255, 0.7)); }
 .map-node.available { cursor: pointer; }
-.map-node.available circle {
-  stroke: var(--energy);
-  stroke-width: 3;
-  filter: drop-shadow(0 0 6px rgba(232, 185, 59, 0.5));
+.map-node.available .node-ring {
+  filter: brightness(1.6) sepia(0.5) saturate(2.4) drop-shadow(0 0 7px rgba(232, 185, 59, 0.7));
 }
 .map-node.available:hover circle { fill: #3a3527; }
+.map-node.available:hover image:not(.node-ring) { filter: brightness(1.9) saturate(1.2); }
 
 /* --- Dialog screens (reward / rest / result) --- */
 .dialog-screen { flex: 1; text-align: center; padding: 24px 0; }
@@ -207,12 +214,14 @@ body[data-phase='shop'] {
 .card.pickable:hover { transform: translateY(-8px); box-shadow: 0 0 0 3px var(--energy); }
 .card.dimmed { opacity: 0.4; cursor: default; }
 
+/* All buttons share the carved-stone plate, 9-sliced so any size keeps clean
+   corners and the label always has real padding (no squashed texture). */
 .primary-btn {
-  background: url('../art/frames/btn_stone.webp') center / 100% 100% no-repeat;
-  border: none;
-  border-radius: 10px;
+  border: 16px solid transparent;
+  border-image: url('../art/frames/btn_stone.webp') 90 fill / 16px stretch;
+  background: none;
   color: #ffe9ad;
-  padding: 17px 44px;
+  padding: 6px 30px;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 3px;
@@ -222,16 +231,18 @@ body[data-phase='shop'] {
   filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.5));
 }
 .ghost-btn {
-  background: rgba(34, 37, 45, 0.6);
-  border: 1px solid var(--junk);
-  border-radius: 8px;
-  color: var(--muted);
-  padding: 11px 26px;
+  border: 14px solid transparent;
+  border-image: url('../art/frames/btn_stone.webp') 90 fill / 14px stretch;
+  background: none;
+  color: #cfc8b8;
+  padding: 2px 16px;
   font-size: 15px;
   cursor: pointer;
   margin-top: 22px;
+  text-shadow: 0 1px 3px #000;
+  filter: brightness(0.82) saturate(0.85) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
 }
-.ghost-btn:hover { border-color: var(--muted); color: var(--text); }
+.ghost-btn:hover { color: var(--text); filter: brightness(1.02) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5)); }
 
 /* --- Top bar chips (relics & potions) --- */
 .chip-group { display: flex; gap: 4px; }
@@ -250,8 +261,8 @@ body[data-phase='shop'] {
 .intent-icon {
   filter: brightness(1.45) saturate(1.15) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
 }
-.chip-icon { width: 25px; height: 25px; object-fit: contain; display: block; }
-.inline-icon { width: 24px; height: 24px; object-fit: contain; vertical-align: -6px; }
+.chip-icon { width: 32px; height: 32px; object-fit: contain; display: block; }
+.inline-icon { width: 28px; height: 28px; object-fit: contain; vertical-align: -8px; }
 .potion-chip.usable { cursor: pointer; }
 .potion-chip.usable:hover { background: #3a3f4d; }
 .potion-chip.selected { outline: 2px solid var(--energy); }
@@ -269,6 +280,33 @@ body[data-phase='shop'] {
   font-size: 16px;
   margin-bottom: 4px;
 }
+
+/* --- Boss relic pick-one-of-three --- */
+.relic-choice-row {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.relic-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 240px;
+  padding: 18px 16px;
+  background: rgba(34, 37, 45, 0.92);
+  border: 1px solid rgba(232, 185, 59, 0.35);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+}
+.relic-choice:hover { border-color: var(--energy); box-shadow: 0 0 14px rgba(232, 185, 59, 0.25); }
+.relic-choice-img { width: 64px; height: 64px; object-fit: contain; }
+.relic-choice-name { font-weight: 700; font-size: 16px; color: #ffe9ad; }
+.relic-choice-desc { font-size: 13.5px; color: var(--muted); line-height: 1.5; }
+.ghost-btn.small { padding: 7px 18px; font-size: 13.5px; margin-top: 10px; }
 
 /* --- Event screen --- */
 .event-art {
@@ -353,26 +391,34 @@ body[data-phase='shop'] {
 .stats-table td:first-child { color: var(--muted); text-align: left; }
 .stats-table td:last-child { text-align: right; }
 
-/* --- Arena: hero on the left, enemies on the right --- */
+/* --- Arena: hero + enemies as one centered group around a middle aisle ---
+   1v1 reads symmetric about the screen centre; more enemies widen the group,
+   sliding the hero further left. Dead enemies keep their slot (no reflow). */
 .arena {
   flex: 1;
   display: flex;
   align-items: flex-end;
-  gap: 24px;
+  justify-content: center;
+  gap: clamp(90px, 16vw, 240px);
   padding: 14px 0 10px;
   min-height: 240px;
 }
+.arena[data-enemy-count='2'] { gap: clamp(70px, 11vw, 170px); }
+.arena[data-enemy-count='3'],
+.arena[data-enemy-count='4'],
+.arena[data-enemy-count='5'] { gap: clamp(50px, 8vw, 120px); }
 
 /* Hero mirrors the enemy block: sprite with name/HP/statuses under its feet. */
 .hero {
   width: 190px;
   flex-shrink: 0;
-  margin-left: 3%;
   text-align: center;
   position: relative;
 }
 .hero-art { position: relative; padding-bottom: 8px; }
 .hero-art img {
+  display: block;
+  margin: 0 auto;
   max-height: 215px;
   max-width: 100%;
   object-fit: contain;
@@ -383,22 +429,28 @@ body[data-phase='shop'] {
   content: '';
   position: absolute;
   left: 50%;
-  bottom: 0;
+  bottom: 4px;
   transform: translateX(-50%);
   width: 70%;
   height: 10px;
   border-radius: 50%;
   background: radial-gradient(ellipse, rgba(0, 0, 0, 0.45), transparent 70%);
+  z-index: -1;
 }
 .hero.hit .hero-art img { animation: hit-shake 0.3s; }
+.hero.lunge .hero-art img { animation: hero-lunge 0.42s ease-in-out; }
+@keyframes hero-lunge {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(-14px) scale(1.02); }
+  55% { transform: translateX(54px) scale(1.06); }
+}
 
 .enemies-row {
-  flex: 1;
+  flex: 0 0 auto;
   display: flex;
   justify-content: center;
   align-items: flex-end;
   gap: 40px;
-  margin-right: 3%;
 }
 
 .enemy {
@@ -410,13 +462,30 @@ body[data-phase='shop'] {
 }
 .enemy.big { width: 190px; }
 
-.enemy.dead { opacity: 0.25; filter: grayscale(1); }
+/* A defeated enemy keeps its slot (so the row never reflows) but shows nothing. */
+.enemy.dead { pointer-events: none; }
+.enemy.dead .enemy-art img,
+.enemy.dead .actor-name,
+.enemy.dead .hp-bar,
+.enemy.dead .statuses,
+.enemy.dead .intent,
+.enemy.dead .enemy-art::after { visibility: hidden; }
 
-.enemy.targetable {
-  cursor: pointer;
-  transform: translateY(-4px);
+/* Target pick: golden underlight + gentle float instead of a hard outline box. */
+.enemy.targetable { cursor: pointer; }
+.enemy.targetable .enemy-art img {
+  filter: brightness(1.18) drop-shadow(0 0 16px rgba(232, 185, 59, 0.65));
+  animation: target-float 1.5s ease-in-out infinite;
 }
-.enemy.targetable .enemy-art { outline: 2px solid var(--energy); outline-offset: 4px; border-radius: 8px; }
+.enemy.targetable .enemy-art::after {
+  background: radial-gradient(ellipse, rgba(232, 185, 59, 0.55), transparent 72%);
+  height: 14px;
+  width: 82%;
+}
+@keyframes target-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
 
 .enemy-art { position: relative; padding-bottom: 8px; }
 .enemy-art::after {
@@ -424,22 +493,25 @@ body[data-phase='shop'] {
   content: '';
   position: absolute;
   left: 50%;
-  bottom: 0;
+  bottom: 4px;
   transform: translateX(-50%);
   width: 70%;
   height: 10px;
   border-radius: 50%;
   background: radial-gradient(ellipse, rgba(0, 0, 0, 0.45), transparent 70%);
+  z-index: -1;
 }
 .enemy-art img {
+  display: block;
+  margin: 0 auto;
   width: 100%;
-  max-height: 140px;
+  max-height: 160px;
   object-fit: contain;
   object-position: bottom;
   animation: idle-bob 3.2s ease-in-out infinite;
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6));
 }
-.enemy.big .enemy-art img { max-height: 200px; }
+.enemy.big .enemy-art img { max-height: 220px; }
 .enemy.dead .enemy-art img { animation: none; }
 
 @keyframes idle-bob {
@@ -457,7 +529,7 @@ body[data-phase='shop'] {
 
 .enemy.just-died .enemy-art img { animation: collapse 0.5s ease-in forwards; }
 @keyframes collapse {
-  to { transform: scaleY(0.15) translateY(28px); opacity: 0.3; }
+  to { transform: scaleY(0.12) translateY(30px); opacity: 0; }
 }
 
 .player-panel.hit { animation: panel-flash 0.35s; }
@@ -545,31 +617,56 @@ body[data-phase='shop'] {
   text-align: center;
   text-shadow: 0 1px 2px #000;
 }
+/* Block badge: painted shield art instead of the old CSS gradient circle. */
 .block-chip {
   position: absolute;
-  left: -16px;
-  top: -5px;
-  background: radial-gradient(circle at 35% 30%, #8fc4ee, var(--block) 60%, #2a5f8e);
-  border-radius: 50%;
-  min-width: 30px;
-  height: 30px;
-  line-height: 30px;
-  font-size: 13px;
-  font-weight: 700;
+  left: -19px;
+  top: -9px;
+  background: url('../art/icons/block_shield.webp') center / contain no-repeat;
+  min-width: 38px;
+  height: 38px;
+  line-height: 36px;
+  font-size: 13.5px;
+  font-weight: 800;
   color: #fff;
-  box-shadow: 0 1px 4px #000;
+  text-align: center;
+  text-shadow: 0 0 4px #000, 0 1px 3px #000;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.7));
 }
 
-.statuses { min-height: 26px; margin-top: 5px; }
+/* Fixed height: buff chips appearing/vanishing must never shift the sprite above. */
+.statuses {
+  height: 30px;
+  margin-top: 5px;
+  overflow: visible;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+/* Icon + stack count, like the original (name/desc live in the hover tooltip). */
 .status-chip {
-  display: inline-block;
-  background: rgba(43, 47, 57, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-  padding: 2px 7px;
-  font-size: 12.5px;
-  margin: 1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--text);
+  text-shadow: 0 1px 2px #000;
+  cursor: help;
+}
+.status-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  filter: brightness(1.3) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+}
+/* Freshly gained stacks pop in so the player notices what just happened. */
+.status-chip.chip-in { animation: chip-in 0.3s ease-out; }
+@keyframes chip-in {
+  from { transform: scale(0.3) translateY(8px); opacity: 0; }
+  60% { transform: scale(1.18); }
+  to { transform: scale(1) translateY(0); opacity: 1; }
 }
 
 /* --- Battle HUD corners (original layout: orb+draw left, discard/exhaust right) --- */
@@ -591,7 +688,14 @@ body[data-phase='shop'] {
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6));
   z-index: 6;
 }
-.energy-orb span { text-shadow: 0 0 6px #000, 0 1px 3px #000; }
+/* The count sits on a dark disc so it stays readable over the glowing orb (C3). */
+.energy-orb span {
+  font-size: 24px;
+  padding: 3px 10px;
+  border-radius: 14px;
+  background: rgba(12, 10, 4, 0.55);
+  text-shadow: 0 0 6px #000, 0 2px 3px #000;
+}
 
 .pile-corner {
   position: absolute;
@@ -650,11 +754,11 @@ body[data-phase='shop'] {
 .turn-num { font-size: 13px; color: var(--muted); text-shadow: 0 1px 2px #000; }
 
 .end-turn {
-  background: url('../art/frames/btn_stone.webp') center / 100% 100% no-repeat;
+  border: 15px solid transparent;
+  border-image: url('../art/frames/btn_stone.webp') 90 fill / 15px stretch;
+  background: none;
   color: #ffe9ad;
-  border: none;
-  border-radius: 10px;
-  padding: 16px 34px;
+  padding: 4px 22px;
   font-size: 17px;
   font-weight: 700;
   cursor: pointer;
@@ -694,9 +798,10 @@ body[data-phase='shop'] {
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
 }
 
-/* While the enemy turn plays out: hand hidden (layout kept), fresh intents veiled. */
+/* While the enemy turn plays out: hand hidden (layout kept).
+   Intents now hide per-enemy at the moment each one acts (see replay). */
 .battle.enemy-phase .hand { visibility: hidden; }
-.battle.enemy-phase .intent { opacity: 0; }
+.intent { transition: opacity 0.18s ease-out; }
 
 .enemy.lunge .enemy-art img { animation: lunge 0.42s ease-in-out; }
 @keyframes lunge {
@@ -746,6 +851,9 @@ body[data-phase='shop'] {
   margin: 0 -16px;
   transform: rotate(var(--rot, 0deg)) translateY(var(--lift, 0px));
   transform-origin: 50% 120%;
+}
+/* Only freshly drawn cards deal in; re-renders leave settled cards alone (C4). */
+.hand .card.in-hand.dealt {
   animation: deal-in 0.3s ease-out backwards;
   animation-delay: var(--deal, 0ms);
 }
@@ -789,20 +897,21 @@ body[data-phase='shop'] {
 .hand .card.in-hand.selected { transform: translateY(-52px) scale(1.18); z-index: 9; box-shadow: 0 0 0 3px var(--energy), 0 10px 26px rgba(0, 0, 0, 0.7); }
 .card.not-playable { opacity: 0.45; cursor: default; }
 
+/* Cost gem uses the same energy-orb art as the player's energy display (C2). */
 .cost {
   position: absolute;
-  top: 5px;
-  left: 5px;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #ffe28a, var(--energy) 60%, #8a6a12);
-  color: #241d05;
+  top: 3px;
+  left: 3px;
+  width: 38px;
+  height: 38px;
+  background: url('../art/frames/energy_orb.webp') center / contain no-repeat;
+  color: #fff8dc;
   font-weight: 800;
   font-size: 17px;
   text-align: center;
-  line-height: 34px;
-  box-shadow: 0 1px 4px #000;
+  line-height: 38px;
+  text-shadow: 0 0 5px #000, 0 1px 3px #000;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
   z-index: 2;
 }
 
@@ -860,21 +969,26 @@ body[data-phase='shop'] {
   justify-content: center;
   z-index: 10;
 }
+/* Every window shares the carved stone panel art (9-sliced). */
 .overlay-box {
-  background: var(--panel);
-  border-radius: 12px;
-  padding: 32px 48px;
+  border: 30px solid transparent;
+  border-image: url('../art/frames/panel_stone.webp') 110 fill / 30px stretch;
+  background: none;
+  padding: 12px 26px;
   text-align: center;
+  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.75));
 }
-.overlay-box h2 { margin: 0 0 18px; font-size: 28px; }
+.overlay-box h2 { margin: 0 0 18px; font-size: 28px; color: #ffe9ad; text-shadow: 0 1px 4px #000; }
 .overlay-box button {
-  background: var(--energy);
-  border: none;
-  border-radius: 8px;
-  padding: 10px 26px;
+  border: 13px solid transparent;
+  border-image: url('../art/frames/btn_stone.webp') 90 fill / 13px stretch;
+  background: none;
+  color: #ffe9ad;
+  padding: 2px 18px;
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
+  text-shadow: 0 1px 3px #000;
 }
 
 /* Pause & settings menus: stacked buttons that keep their own skins. */
@@ -884,20 +998,8 @@ body[data-phase='shop'] {
   gap: 12px;
   min-width: 340px;
 }
-.menu-box .primary-btn {
-  background: url('../art/frames/btn_stone.webp') center / 100% 100% no-repeat;
-  color: #ffe9ad;
-  font-weight: 700;
-}
-.menu-box .ghost-btn {
-  background: rgba(34, 37, 45, 0.6);
-  border: 1px solid var(--junk);
-  color: var(--muted);
-  margin-top: 0;
-  font-weight: 400;
-}
-.menu-box .ghost-btn:hover { border-color: var(--muted); color: var(--text); }
-.menu-box .ghost-btn.danger { border-color: #b4433a; color: #ff8d80; }
+.menu-box .ghost-btn { margin-top: 0; font-weight: 400; }
+.menu-box .ghost-btn.danger { color: #ff8d80; filter: brightness(0.9) sepia(0.3) hue-rotate(-30deg) saturate(1.6); }
 .setting-row {
   display: flex;
   align-items: center;
@@ -917,6 +1019,44 @@ body[data-phase='shop'] {
   background: rgba(120, 90, 20, 0.35);
 }
 .title-settings { display: inline-flex; align-items: center; gap: 8px; }
+
+/* --- Instant custom tooltip (replaces the slow native title attribute) --- */
+.tooltip {
+  position: fixed;
+  transform: translateX(-50%);
+  max-width: 280px;
+  background: rgba(18, 20, 26, 0.97);
+  border: 1px solid rgba(232, 185, 59, 0.55);
+  border-radius: 8px;
+  padding: 9px 13px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text);
+  text-align: left;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s ease-out;
+  z-index: 30;
+}
+.tooltip.show { opacity: 1; }
+.tooltip b { display: block; color: #ffe9ad; margin-bottom: 2px; font-size: 14px; }
+.tooltip span { color: var(--muted); }
+
+/* --- Campfire upgrade preview --- */
+.upgrade-box { max-width: 640px; }
+.upgrade-compare {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin: 8px 0 18px;
+}
+.upgrade-arrow { font-size: 34px; color: var(--energy); text-shadow: 0 0 12px rgba(232, 185, 59, 0.6); }
+.upgrade-actions { display: flex; justify-content: center; gap: 14px; }
+.confirm-text { color: var(--muted); font-size: 15px; margin: 0 0 8px; }
+.title-links { display: flex; gap: 12px; align-items: center; }
+.title-links .ghost-btn { margin-top: 22px; }
 
 /* --- Boot loading screen --- */
 body[data-phase='loading'] {

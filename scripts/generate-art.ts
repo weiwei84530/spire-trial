@@ -40,7 +40,10 @@ const CARD_STYLE =
 const SPRITE_STYLE =
   `${STYLE} Full-body creature for a side-view battle scene, facing slightly toward the ` +
   'viewer\'s left, feet or base at the bottom, whole body fully visible inside the canvas ' +
-  'with margin on all sides. Isolated subject on a fully transparent background, no ground, no shadow.';
+  'with margin on all sides. The entire subject — every limb, weapon, spike and appendage — ' +
+  'stays fully inside the frame with at least 10% empty margin on all four sides; ' +
+  'nothing touches or gets cut off by the canvas edges. ' +
+  'Isolated subject on a fully transparent background, no ground, no shadow.';
 
 const ICON_STYLE =
   `${STYLE} Single small object as a game inventory icon, centered, slight magical glow, ` +
@@ -241,7 +244,10 @@ ASSETS.push({
     'Ornate dark fantasy lettering: engraved gold metal with ember glow along the edges, ' +
     'chipped and weathered, subtle sword-like vertical stroke flourishes. ' +
     'Large characters filling most of the canvas, centered. ' +
-    'Isolated on a fully transparent background, no other text, no watermark, no border.',
+    'Isolated on a fully transparent background with a perfectly clean sharp alpha silhouette: ' +
+    'no rust speckles, no texture fragments, no smoke, no particles, no debris floating around or between ' +
+    'the characters — every pixel outside the letter strokes must be fully transparent. ' +
+    'No other text, no watermark, no border.',
 });
 
 // English title logo (counterpart of the Chinese one above).
@@ -268,6 +274,12 @@ icon('node_event', 'a mysterious glowing lantern emblem wrapped in swirling indi
 icon('node_shop', 'a plump leather coin pouch emblem with gold coins spilling out');
 icon('node_boss', 'a golden crown resting on a dark skull emblem, ominous red glow');
 
+icon(
+  'node_ring',
+  'a round weathered dark-bronze medallion ring frame with faint engraved runes, ' +
+    'hollow fully transparent center, uniform ring thickness, front-facing flat view'
+);
+
 // --- Top bar & battle UI icons ---
 
 icon('ui_hp', 'a glowing crimson heart shaped gem, gothic faceted');
@@ -275,15 +287,59 @@ icon('ui_gold', 'a small neat stack of glowing gold coins');
 icon('ui_deck', 'a neat stack of ornate card backs, indigo with gold trim');
 icon('ui_floor', 'a slender dark spire tower emblem with tiny glowing windows');
 icon('ui_menu', 'an ornate dark iron gear emblem with a thin engraved gold rim, faint ember glow');
-icon('ui_sound_on', 'a curved golden war horn emblem emitting three small sound arcs');
-icon('ui_sound_off', 'a curved dark war horn emblem, cracked and silent, faint grey');
+icon(
+  'ui_sound_on',
+  'a bold golden loudspeaker pictogram emblem with three curved sound waves to its right, ' +
+    'simple unmistakable silhouette, instantly readable at very small sizes, crisp clean edges, ' +
+    'no smoke, no dark halo, no background shading of any kind around the emblem'
+);
+icon(
+  'ui_sound_off',
+  'a bold grey loudspeaker pictogram emblem crossed out by one thick diagonal red slash, ' +
+    'simple unmistakable silhouette, instantly readable at very small sizes, crisp clean edges, no glow spill'
+);
 icon('ui_draw', 'a face-down ornate card with a golden arrow curving upward out of it');
 icon('ui_discard', 'two worn cards tossed loosely, one flipped, muted grey-blue');
 icon('ui_exhaust', 'a single card burning away at the corner into ember sparks');
-icon('intent_attack', 'a single downward-slashing sword with a red motion arc');
+icon(
+  'intent_attack',
+  'a bold steel longsword with a clear crossguard and hilt, pointed diagonally downward, ' +
+    'unmistakable sword silhouette readable at very small sizes, thin red motion arc behind the blade'
+);
 icon('intent_defend', 'a round steel shield emblem with blue ward glow');
 icon('intent_buff', 'an upward flaring golden flame arrow');
 icon('intent_debuff', 'a downward dripping purple arrow, sickly glow');
+
+// --- Status (buff/debuff) icons: bold silhouettes readable at ~20px ---
+
+const STATUS_ICON_STYLE =
+  'bold simple emblem with an unmistakable silhouette, instantly readable at very small sizes, crisp clean edges';
+
+icon('status_strength', `a flexed armored arm emblem with ember-red power glow, ${STATUS_ICON_STYLE}`);
+icon('status_dexterity', `a swift light boot emblem with pale green motion lines, ${STATUS_ICON_STYLE}`);
+icon('status_vulnerable', `a cracked broken shield emblem with orange glow seeping from the cracks, ${STATUS_ICON_STYLE}`);
+icon('status_weak', `a drooping bent sword emblem sagging downward in teal mist, ${STATUS_ICON_STYLE}`);
+icon('status_frail', `a shattering pale-blue shield splitting into fragments emblem, ${STATUS_ICON_STYLE}`);
+icon('status_poison', `a single bubbling toxic green droplet emblem, ${STATUS_ICON_STYLE}`);
+icon('status_ritual', `a dark candle burning with a violet occult flame emblem, ${STATUS_ICON_STYLE}`);
+icon('status_metallicize', `a riveted polished iron plate emblem with cold sheen, ${STATUS_ICON_STYLE}`);
+icon('status_thorns', `a ring of sharp interlocking briar thorns emblem, ${STATUS_ICON_STYLE}`);
+icon('status_energized', `a bold golden lightning bolt emblem, ${STATUS_ICON_STYLE}`);
+icon('status_barricade', `a sturdy stone tower-shield wall emblem with blue glow, ${STATUS_ICON_STYLE}`);
+icon('status_noxious', `a swirling cloud of luminous green fumes emblem, ${STATUS_ICON_STYLE}`);
+
+// --- Relic icons: batch 2 (StS-inspired additions) ---
+
+relic('lantern', 'an ornate brass adventurer lantern glowing warm gold');
+relic('bag_of_marbles', 'a small open drawstring pouch spilling shiny glass marbles');
+relic('red_mask', 'a sinister crimson festival mask with narrow eye slits');
+relic('thread_and_needle', 'a silver sewing needle with shimmering golden thread coiled around it');
+relic('twisted_funnel', 'a twisted dark metal funnel dripping luminous green venom');
+relic('strawberry', 'a plump glossy strawberry with a faint magical shimmer');
+relic('mango', 'a ripe golden mango with a faint magical shimmer');
+relic('whetstone', 'a worn grey whetstone with fine metal shavings and faint sparks');
+relic('potion_belt', 'a leather bandolier belt with small potion vials tucked in its loops');
+relic('meat_on_the_bone', 'a hearty roasted joint of meat on the bone, faint warm glow');
 
 // --- Button & panel textures ---
 
@@ -305,6 +361,26 @@ ASSETS.push({
   prompt:
     `${STYLE} A perfectly round glowing golden energy orb, swirling molten core, thin dark metal ring mount, ` +
     'strong inner light, centered. Isolated on a fully transparent background.',
+});
+ASSETS.push({
+  id: 'panel_stone',
+  dir: 'frames',
+  size: '1536x1024',
+  transparent: true,
+  prompt:
+    `${STYLE} A large rectangular game window panel: dark carved stone slab framed by a thin engraved ` +
+    'gold trim border with subtle ember glow at the corners, uniform border thickness on all four sides, ' +
+    'completely plain very dark empty center for interface content, slightly rounded corners, ' +
+    'front-facing flat view filling the whole canvas. Isolated on a fully transparent background.',
+});
+ASSETS.push({
+  id: 'block_shield',
+  dir: 'icons',
+  size: '1024x1024',
+  transparent: true,
+  prompt:
+    `${ICON_STYLE} Object: a compact steel kite shield badge with a cold blue ward glow and a plain ` +
+    'flat center for a number, bold simple silhouette readable at very small sizes',
 });
 
 /** Card face background textures per card type (very dark so text stays readable). */

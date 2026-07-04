@@ -174,6 +174,10 @@ export function simulateFullRuns(runs: number, baseSeed = 1): RunSimResult {
           break;
         case 'reward':
         case 'actTransition':
+          // Boss loot: always claim one of the offered relics before moving on.
+          if (run.reward!.relicChoices?.length) {
+            run.pickRewardRelic(run.rng.pick(run.reward!.relicChoices));
+          }
           run.pickReward(pickBestReward(run.reward!.cards, run.deck.length));
           break;
         case 'rest': {

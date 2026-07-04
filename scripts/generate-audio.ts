@@ -80,7 +80,7 @@ sfx('card', 0.8, 'Quick sharp playing-card swipe whoosh, paper flick with a fain
 sfx('draw', 0.7, 'A card being drawn swiftly from a deck, crisp short paper slide, quiet');
 sfx('hit', 0.9, 'Sword slash impact hitting a monster, heavy meaty thud with a metallic edge, short');
 sfx('block', 0.8, 'Sword blow deflected by a round metal shield, dull metallic clang, short single impact');
-sfx('hurt', 1.0, 'Male warrior grunt of pain with a heavy body impact, short, visceral');
+sfx('hurt', 1.0, 'A blade slicing across leather armor with a heavy dull flesh impact, short and visceral, no voice, no screaming, no vocal sounds of any kind');
 sfx('heal', 1.4, 'Warm magical healing shimmer, soft ascending chime sparkle, gentle glow');
 sfx('potion', 1.2, 'Drinking a magic potion: glass clink, quick gulp, bubbling fizz tail');
 sfx('gold', 1.0, 'A small handful of gold coins dropping and jingling onto a wooden counter');

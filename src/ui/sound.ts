@@ -39,6 +39,27 @@ const MUSIC_VOL = 0.3;
 const STINGER_VOL = 0.45;
 const FADE_SECONDS = 1.2;
 
+/**
+ * Per-SFX gain applied on top of the SFX bus. Ear-levelled so no single
+ * effect jumps out: sharp impacts and roars sit well below the UI ticks.
+ */
+const SFX_GAIN: Record<SfxName, number> = {
+  click: 0.55,
+  card: 0.7,
+  draw: 0.7,
+  hit: 0.6,
+  block: 0.6,
+  hurt: 0.55,
+  heal: 0.75,
+  potion: 0.7,
+  gold: 0.6,
+  upgrade: 0.65,
+  node: 0.7,
+  boss: 0.55,
+  victory: 0.7,
+  defeat: 0.7,
+};
+
 /** Run phases without a dedicated track share the map/camp theme. */
 const PHASE_MUSIC: Record<string, MusicName> = {
   title: 'music_title',
@@ -197,7 +218,11 @@ class SoundManager {
       if (!buffer || !this.ctx || !this.sfxBus) return;
       const source = this.ctx.createBufferSource();
       source.buffer = buffer;
-      source.connect(this.sfxBus);
+      // Per-sound trim so loud one-shots stay level with the rest of the mix.
+      const trim = this.ctx.createGain();
+      trim.gain.value = SFX_GAIN[name] ?? 0.7;
+      source.connect(trim);
+      trim.connect(this.sfxBus);
       source.start();
     });
   }

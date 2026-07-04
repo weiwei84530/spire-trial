@@ -435,7 +435,10 @@ describe('Day 2 mechanics', () => {
       enemies: ['cultist'],
     });
     const enemy = battle.state.enemies[0]!;
-    expect(battle.intentOf(enemy)).toEqual({ kind: 'buff' }); // incantation
+    // Incantation: buff intent now also previews the statuses it will apply.
+    const buffIntent = battle.intentOf(enemy);
+    expect(buffIntent.kind).toBe('buff');
+    expect(buffIntent.statuses).toEqual([{ id: 'ritual', stacks: 3, onSelf: true }]);
     battle.endTurn();
     // dark strike: 6 base + 3 strength from ritual
     expect(battle.intentOf(enemy)).toEqual({ kind: 'attack', damage: 9, hits: 1 });
