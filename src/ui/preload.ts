@@ -23,13 +23,16 @@ const ICONS = [
   'status_poison', 'status_ritual', 'status_metallicize', 'status_thorns', 'status_energized',
   'status_barricade', 'status_noxious',
 ];
-const BACKGROUNDS = ['title', 'battle', 'map', 'rest', 'shop', 'hero', 'logo', 'logo_en'];
+const BACKGROUNDS = ['title', 'battle', 'battle_city', 'battle_beyond', 'map', 'rest', 'shop', 'hero', 'logo', 'logo_en'];
 const FRAMES = ['btn_stone', 'energy_orb', 'panel_stone', 'frame_attack', 'frame_skill', 'frame_power', 'frame_neutral'];
 const SFX: SfxName[] = [
   'click', 'card', 'draw', 'hit', 'block', 'hurt', 'heal', 'potion',
   'gold', 'upgrade', 'node', 'boss', 'victory', 'defeat',
 ];
-const MUSIC = ['music_title', 'music_map', 'music_battle', 'music_boss', 'stinger_victory', 'stinger_defeat'];
+const MUSIC = [
+  'music_title', 'music_map', 'music_battle', 'music_battle_city', 'music_battle_beyond',
+  'music_boss', 'stinger_victory', 'stinger_defeat',
+];
 
 function imageUrls(): string[] {
   const urls: string[] = [];

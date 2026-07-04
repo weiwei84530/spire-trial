@@ -1097,9 +1097,11 @@ export class App {
     }
     this.onTitle = false;
     // Per-phase full-bleed background image, applied at the body level.
+    // data-act picks the themed battle arena (and battle music) for acts 2/3.
     document.body.dataset.phase = this.run.phase;
+    document.body.dataset.act = String(this.run.act);
     const bossBattle = this.run.phase === 'battle' && this.isBossNode();
-    sound.setPhase(this.run.phase, bossBattle);
+    sound.setPhase(this.run.phase, bossBattle, this.run.act);
     const overlays = `${this.deckOpen ? this.deckOverlayHtml() : ''}${this.pauseOpen ? this.pauseOverlayHtml() : ''}${this.settingsOpen ? this.settingsOverlayHtml() : ''}${this.cheatOpen ? this.cheatOverlayHtml() : ''}${this.upgradePreview !== null ? this.upgradeOverlayHtml() : ''}${this.restartConfirm ? this.restartOverlayHtml() : ''}${this.clearDataConfirm ? this.clearDataOverlayHtml() : ''}`;
     this.root.innerHTML = `<div class="game">${this.topBarHtml()}${screen}${overlays}</div>`;
     this.turnBanner = null; // one-shot: the banner animates out and never re-renders
@@ -1993,7 +1995,9 @@ export class App {
         <table class="stats-table">
           ${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}
         </table>
-        <button class="primary-btn" data-new-run>${t('newRun')}</button>
+        ${phase === 'victory'
+          ? `<button class="primary-btn" data-back-title>${t('backToTitle')}</button>`
+          : `<button class="primary-btn" data-new-run>${t('newRun')}</button>`}
       </div>`;
   }
 

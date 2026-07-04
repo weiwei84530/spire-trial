@@ -224,6 +224,30 @@ bg(
     'flames, anvil and whetstone nearby, comforting golden light against cold indigo stone darkness. ' +
     'Empty foreground kept dark and simple for game UI.'
 );
+// Per-act battle arenas. Act 1 keeps the original 'battle' dungeon hall;
+// acts 2/3 get their own theme (StS: The City / The Beyond) in the same style.
+bg(
+  'battle_city',
+  'Interior plaza of a decadent ruined city built inside the ancient spire, seen from a ' +
+    'slightly elevated viewpoint looking gently down, a vast open floor of cracked marble ' +
+    'flagstones filling the lower 60% of the image, the paved ground reaching up past the ' +
+    'vertical middle of the canvas before the building facades begin. Leaning gothic ' +
+    'townhouses, ornate iron lamp posts and tattered violet cult banners at the sides, cold ' +
+    'moonlit haze with faint ember lantern glow, depth fading into indigo darkness. Empty ' +
+    'stage composition, the floor kept clear and dark for game UI, low contrast, nothing in ' +
+    'the center.'
+);
+bg(
+  'battle_beyond',
+  'A surreal otherworldly void at the top of the ancient spire, viewed from above eye level ' +
+    'looking down onto a vast platform of shattered dark stone, the paved floor dominating the ' +
+    'composition and filling the bottom 60% of the image, its far edge sitting clearly above ' +
+    'the vertical middle of the canvas, the void sky confined to the top third. Broken arches ' +
+    'and slabs of rubble drifting weightless at the sides, alien nebula of deep indigo with ' +
+    'faint violet glow and drifting ember-gold motes, strange dim colossal silhouettes far in ' +
+    'the distance. Empty stage composition, the floor kept clear and dark for game UI, low ' +
+    'contrast, nothing in the center.'
+);
 bg(
   'shop',
   "A mysterious hooded merchant's underground stall, canvas awning strung between pillars, shelves of " +

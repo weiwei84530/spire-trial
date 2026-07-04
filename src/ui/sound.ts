@@ -28,7 +28,13 @@ export type SfxName =
   | 'defeat'
   | 'click';
 
-export type MusicName = 'music_title' | 'music_map' | 'music_battle' | 'music_boss';
+export type MusicName =
+  | 'music_title'
+  | 'music_map'
+  | 'music_battle'
+  | 'music_battle_city'
+  | 'music_battle_beyond'
+  | 'music_boss';
 
 const MUTE_KEY = 'cardgame_muted';
 const MUSIC_VOL_KEY = 'cardgame_music_vol';
@@ -58,6 +64,13 @@ const SFX_GAIN: Record<SfxName, number> = {
   boss: 0.55,
   victory: 0.7,
   defeat: 0.7,
+};
+
+/** Per-act regular-battle themes; boss battles always use music_boss. */
+const BATTLE_MUSIC: Record<number, MusicName> = {
+  1: 'music_battle',
+  2: 'music_battle_city',
+  3: 'music_battle_beyond',
 };
 
 /** Run phases without a dedicated track share the map/camp theme. */
@@ -231,11 +244,11 @@ class SoundManager {
    * Route the run phase to the right music: looping BGM for regular phases,
    * a one-shot stinger for the run-ending result screens.
    */
-  setPhase(phase: string, bossBattle = false): void {
+  setPhase(phase: string, bossBattle = false, act = 1): void {
     let key: string | null;
     let oneShot = false;
     if (phase === 'battle') {
-      key = bossBattle ? 'music_boss' : 'music_battle';
+      key = bossBattle ? 'music_boss' : (BATTLE_MUSIC[act] ?? 'music_battle');
     } else if (phase === 'victory' || phase === 'defeat') {
       key = `stinger_${phase}`;
       oneShot = true;

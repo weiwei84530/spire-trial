@@ -56,6 +56,20 @@ body[data-phase='reward'] {
     linear-gradient(rgba(16, 17, 22, 0.5), rgba(16, 17, 22, 0.82) 75%),
     url('../art/bg/battle.webp') center top / cover fixed no-repeat var(--bg);
 }
+/* Per-act battle arenas (body[data-act] set alongside data-phase): act 1 keeps
+   the original dungeon hall above; acts 2/3 swap to their themed backdrops. */
+body[data-phase='battle'][data-act='2'],
+body[data-phase='reward'][data-act='2'] {
+  background:
+    linear-gradient(rgba(16, 17, 22, 0.5), rgba(16, 17, 22, 0.82) 75%),
+    url('../art/bg/battle_city.webp') center top / cover fixed no-repeat var(--bg);
+}
+body[data-phase='battle'][data-act='3'],
+body[data-phase='reward'][data-act='3'] {
+  background:
+    linear-gradient(rgba(16, 17, 22, 0.5), rgba(16, 17, 22, 0.82) 75%),
+    url('../art/bg/battle_beyond.webp') center top / cover fixed no-repeat var(--bg);
+}
 body[data-phase='map'],
 body[data-phase='actTransition'],
 body[data-phase='event'],

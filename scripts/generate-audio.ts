@@ -110,6 +110,22 @@ music(
   `${MUSIC_STYLE} Combat theme: driving mid-tempo battle music, aggressive string ostinato, ` +
     'insistent war drums, tense and relentless but not overwhelming.'
 );
+// Per-act regular-battle themes. Act 1 keeps 'music_battle' (composed for the
+// dungeon theme); acts 2/3 get their own combat loops in the same style.
+music(
+  'music_battle_city',
+  75,
+  `${MUSIC_STYLE} Act 2 combat theme, a corrupted holy city of fanatic cultists inside the spire: ` +
+    'driving mid-tempo battle music, aggressive string ostinato over tolling ceremonial bells, ' +
+    'low ritual choir chanting, insistent war drums, zealous, ornate and menacing.'
+);
+music(
+  'music_battle_beyond',
+  75,
+  `${MUSIC_STYLE} Act 3 combat theme, an alien void beyond reality at the top of the spire: ` +
+    'driving mid-tempo battle music with an eerie otherworldly edge, dissonant string ostinato, ' +
+    'glassy shimmering high textures, deep pulsing drums, ghostly wordless choir, unsettling and relentless.'
+);
 music(
   'music_boss',
   90,
