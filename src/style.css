@@ -43,6 +43,8 @@ body[data-phase='title'] {
     linear-gradient(rgba(16, 17, 22, 0.25), rgba(16, 17, 22, 0.5) 60%, rgba(16, 17, 22, 0.85)),
     url('../art/bg/title.webp') center / cover fixed no-repeat var(--bg);
 }
+/* The fanned hand pokes past the bottom edge; no scrollbar for it. */
+body[data-phase='battle'] { overflow: hidden; }
 body[data-phase='battle'],
 body[data-phase='reward'] {
   background:
@@ -127,20 +129,46 @@ body[data-phase='shop'] {
   position: relative;
 }
 
+/* Two-row top bar (original style): stats strip, then a relic row. */
 .top-bar {
   color: var(--text);
-  padding: 6px 2px;
+  margin: -8px -16px 0; /* bleed across the .game padding like a full strip */
+  font-size: 16px;
+}
+.top-bar-main {
   display: flex;
   align-items: center;
-  gap: 22px;
-  font-size: 16px;
-  border-bottom: 1px solid var(--panel-2);
+  gap: 20px;
+  padding: 7px 18px;
+  background: rgba(10, 11, 15, 0.88);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 .top-bar .stat { display: inline-flex; align-items: center; gap: 5px; }
+.top-bar .hp-stat { color: #ff8d80; font-weight: 700; }
+.top-bar .gold-stat { color: var(--energy); font-weight: 700; }
+.top-bar-center {
+  flex: 1;
+  text-align: center;
+  color: #ffe9ad;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-shadow: 0 1px 3px #000;
+}
 .top-bar-right { display: inline-flex; align-items: center; gap: 14px; }
+.deck-chip { cursor: pointer; }
+.deck-chip:hover { color: #ffe9ad; filter: brightness(1.2); }
+.relic-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 38px;
+  padding: 4px 18px;
+  background: rgba(10, 11, 15, 0.5);
+}
 .heading-icon { width: 34px; height: 34px; object-fit: contain; vertical-align: -8px; margin-right: 4px; }
-
-.turn-label { color: var(--muted); padding: 4px 2px; font-size: 15px; }
 
 /* --- Map screen --- */
 .map-screen { flex: 1; text-align: center; }
@@ -331,25 +359,27 @@ body[data-phase='shop'] {
   display: flex;
   align-items: flex-end;
   gap: 24px;
-  padding: 8px 0 18px;
-  min-height: 200px;
+  padding: 14px 0 10px;
+  min-height: 240px;
 }
 
-.hero-side {
-  width: 170px;
+/* Hero mirrors the enemy block: sprite with name/HP/statuses under its feet. */
+.hero {
+  width: 190px;
   flex-shrink: 0;
+  margin-left: 3%;
   text-align: center;
   position: relative;
-  padding-bottom: 8px;
 }
-.hero-side img {
-  max-height: 210px;
+.hero-art { position: relative; padding-bottom: 8px; }
+.hero-art img {
+  max-height: 215px;
   max-width: 100%;
   object-fit: contain;
   animation: idle-bob 3.6s ease-in-out infinite;
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6));
 }
-.hero-side::after {
+.hero-art::after {
   content: '';
   position: absolute;
   left: 50%;
@@ -360,7 +390,7 @@ body[data-phase='shop'] {
   border-radius: 50%;
   background: radial-gradient(ellipse, rgba(0, 0, 0, 0.45), transparent 70%);
 }
-.hero-side.hit img { animation: hit-shake 0.3s; }
+.hero.hit .hero-art img { animation: hit-shake 0.3s; }
 
 .enemies-row {
   flex: 1;
@@ -368,6 +398,7 @@ body[data-phase='shop'] {
   justify-content: center;
   align-items: flex-end;
   gap: 40px;
+  margin-right: 3%;
 }
 
 .enemy {
@@ -462,7 +493,7 @@ body[data-phase='shop'] {
   to { opacity: 0; margin-top: -36px; }
 }
 
-.mute-chip { cursor: pointer; margin-right: 12px; }
+.mute-chip { cursor: pointer; }
 .mute-chip:hover { filter: brightness(1.3); }
 
 /* --- Title screen --- */
@@ -541,42 +572,84 @@ body[data-phase='shop'] {
   color: var(--text);
 }
 
-/* --- Player row --- */
-.player-row {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  /* Slightly translucent so the backdrop art reads through. */
-  background: rgba(34, 37, 45, 0.9);
-  border-radius: 10px;
-  padding: 10px 16px;
-}
-.player-panel { width: 220px; position: relative; }
-
+/* --- Battle HUD corners (original layout: orb+draw left, discard/exhaust right) --- */
 .energy-orb {
-  width: 84px;
-  height: 84px;
+  position: absolute;
+  left: 20px;
+  bottom: 108px;
+  width: 96px;
+  height: 96px;
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
   color: #fff8dc;
   font-weight: 800;
-  font-size: 19px;
+  font-size: 21px;
   display: flex;
   align-items: center;
   justify-content: center;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6));
-  flex-shrink: 0;
+  z-index: 6;
 }
 .energy-orb span { text-shadow: 0 0 6px #000, 0 1px 3px #000; }
 
-.piles { display: flex; flex-direction: column; gap: 5px; color: var(--muted); font-size: 15px; }
-.pile-link { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-.pile-link:hover { color: var(--text); }
-.pile-icon { width: 22px; height: 22px; object-fit: contain; }
+.pile-corner {
+  position: absolute;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  z-index: 6;
+}
+.pile-img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  display: block;
+  filter: brightness(1.35) saturate(1.1) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.75));
+}
+.pile-corner:hover .pile-img { filter: brightness(1.7) drop-shadow(0 0 9px rgba(232, 185, 59, 0.5)); }
+.pile-count {
+  position: absolute;
+  right: -9px;
+  bottom: -5px;
+  min-width: 27px;
+  height: 27px;
+  line-height: 27px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #d95c4a, #a32222 65%, #6e1414);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: center;
+  text-shadow: 0 1px 2px #000;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+.pile-corner.draw { left: 22px; bottom: 12px; }
+.pile-corner.discard { right: 22px; bottom: 12px; }
+.pile-corner.exhaust { right: 32px; bottom: 96px; opacity: 0.85; }
+.pile-corner.exhaust .pile-img { width: 42px; height: 42px; }
+.pile-corner.exhaust .pile-count {
+  min-width: 21px;
+  height: 21px;
+  line-height: 21px;
+  font-size: 11.5px;
+  right: -7px;
+}
+
+.end-turn-wrap {
+  position: absolute;
+  right: 20px;
+  bottom: 168px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 6;
+}
+.turn-num { font-size: 13px; color: var(--muted); text-shadow: 0 1px 2px #000; }
 
 .end-turn {
-  margin-left: auto;
   background: url('../art/frames/btn_stone.webp') center / 100% 100% no-repeat;
   color: #ffe9ad;
   border: none;
@@ -587,10 +660,62 @@ body[data-phase='shop'] {
   cursor: pointer;
   text-shadow: 0 1px 3px #000;
 }
-.end-turn:disabled { opacity: 0.4; cursor: default; }
+.end-turn:disabled { opacity: 0.55; cursor: default; filter: grayscale(0.4); }
 .end-turn.warn {
   color: #ffd75e;
   filter: drop-shadow(0 0 8px rgba(255, 200, 60, 0.35));
+}
+
+/* --- Turn banner & enemy-turn pacing --- */
+.turn-banner {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  transform: translate(-50%, -50%);
+  padding: 12px 64px;
+  font-family: Cinzel, "Noto Serif TC", serif;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 7px;
+  white-space: nowrap;
+  color: #ffe9ad;
+  text-shadow: 0 2px 8px #000;
+  background: linear-gradient(90deg, transparent, rgba(16, 17, 23, 0.92) 18%, rgba(16, 17, 23, 0.92) 82%, transparent);
+  border-top: 1px solid rgba(232, 185, 59, 0.45);
+  border-bottom: 1px solid rgba(232, 185, 59, 0.45);
+  z-index: 8;
+  pointer-events: none;
+  animation: banner-flash 1.35s ease forwards;
+}
+@keyframes banner-flash {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  14% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  72% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* While the enemy turn plays out: hand hidden (layout kept), fresh intents veiled. */
+.battle.enemy-phase .hand { visibility: hidden; }
+.battle.enemy-phase .intent { opacity: 0; }
+
+.enemy.lunge .enemy-art img { animation: lunge 0.42s ease-in-out; }
+@keyframes lunge {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(14px) scale(1.02); }
+  55% { transform: translateX(-54px) scale(1.06); }
+}
+.enemy.act .enemy-art img { animation: act-pulse 0.5s ease; }
+@keyframes act-pulse {
+  40% { transform: scale(1.1); filter: brightness(1.6) drop-shadow(0 0 14px rgba(232, 185, 59, 0.7)); }
+}
+
+/* Played card flies off toward the discard corner before the state re-render. */
+.hand .card.in-hand.fly-out {
+  transform: translate(46vw, -60px) rotate(24deg) scale(0.4);
+  opacity: 0;
+  transition: transform 0.22s ease-in, opacity 0.22s ease-in;
+  pointer-events: none;
+  z-index: 9;
 }
 
 /* Collapsible battle log (debug-flavored; closed by default). */
@@ -614,6 +739,7 @@ body[data-phase='shop'] {
   display: flex;
   justify-content: center;
   padding: 16px 0 4px;
+  margin: 0 130px; /* keep the corner HUD (orb, piles, end turn) clear */
   min-height: 258px;
 }
 .hand .card.in-hand {

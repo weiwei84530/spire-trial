@@ -64,6 +64,8 @@ const STR = {
   you: { en: 'You', zh: '你' },
   energy: { en: 'Energy', zh: '能量' },
   endTurn: { en: 'End turn', zh: '結束回合' },
+  enemyTurn: { en: 'Enemy Turn', zh: '敵方回合' },
+  yourTurn: { en: 'Your Turn', zh: '你的回合' },
   endTurnEnergy: { en: 'End turn ({0} energy left)', zh: '結束回合（剩 {0} 能量）' },
   playableLeft: { en: 'You can still play cards', zh: '還有可打出的卡牌' },
   battleLog: { en: 'Battle log', zh: '戰鬥紀錄' },

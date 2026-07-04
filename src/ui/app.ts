@@ -35,6 +35,8 @@ import { clearSave, loadRun, saveRun } from './storage';
 /** Pre-action HP/block snapshot, diffed after the action to drive hit FX. */
 interface BattleSnapshot {
   enemies: { hp: number; block: number }[];
+  /** Intent kind each living enemy showed before the action (drives the enemy-turn pacing). */
+  intents: (IntentPreview['kind'] | null)[];
   playerHp: number;
   playerBlock: number;
 }
@@ -125,6 +127,14 @@ export class App {
   private pauseOpen = false;
   /** Restart in the pause menu needs a second confirming click. */
   private restartArmed = false;
+  /** Cosmetic enemy-turn sequence in progress: input locked, hand hidden. */
+  private enemyPhase = false;
+  /** One-shot turn banner text, rendered once then cleared. */
+  private turnBanner: string | null = null;
+  /** Short input lock while a played card flies out. */
+  private playLock = false;
+  /** Deck overlay (opened from the top bar) visibility. */
+  private deckOpen = false;
   private readonly root: HTMLElement;
 
   constructor(root: HTMLElement) {
@@ -219,6 +229,10 @@ export class App {
     this.pauseOpen = false;
     this.settingsOpen = false;
     this.restartArmed = false;
+    this.enemyPhase = false;
+    this.turnBanner = null;
+    this.playLock = false;
+    this.deckOpen = false;
     this.render();
   }
 
@@ -245,6 +259,7 @@ export class App {
     if (!battle) return null;
     return {
       enemies: battle.state.enemies.map((e) => ({ hp: e.hp, block: e.block })),
+      intents: battle.state.enemies.map((e) => (e.hp > 0 ? battle.intentOf(e).kind : null)),
       playerHp: battle.state.player.hp,
       playerBlock: battle.state.player.block,
     };
@@ -271,25 +286,24 @@ export class App {
     if (anyHit) sound.play('hit');
 
     const player = battle.state.player;
-    const panel = this.root.querySelector('.player-panel');
-    if (!panel) return;
+    const hero = this.root.querySelector('.hero');
+    if (!hero) return;
     const lostHp = before.playerHp - player.hp;
     if (lostHp > 0) {
-      panel.classList.add('hit');
-      this.root.querySelector('.hero-side')?.classList.add('hit');
-      this.floatText(panel, `-${lostHp}`, 'dmg');
+      hero.classList.add('hit');
+      this.floatText(hero, `-${lostHp}`, 'dmg');
       sound.play('hurt');
       // Big hits rattle the whole arena.
       if (lostHp >= 15) this.root.querySelector('.battle')?.classList.add('shake');
     } else if (lostHp < 0) {
-      this.floatText(panel, `+${-lostHp}`, 'heal');
-      this.burst(panel, 'heal', 8);
+      this.floatText(hero, `+${-lostHp}`, 'heal');
+      this.burst(hero, 'heal', 8);
       sound.play('heal');
     }
     const gainedBlock = player.block - before.playerBlock;
     if (gainedBlock > 0) {
-      this.floatText(panel, `+${gainedBlock}`, 'block');
-      this.burst(panel, 'block', 7);
+      this.floatText(hero, `+${gainedBlock}`, 'block');
+      this.burst(hero, 'block', 7);
       sound.play('block');
     }
   }
@@ -331,7 +345,7 @@ export class App {
 
   private onCardClick(index: number): void {
     const battle = this.run.battle;
-    if (!battle) return;
+    if (!battle || this.enemyPhase || this.playLock) return;
     const card = battle.state.player.hand[index];
     if (!card) return;
     if (!this.isHandCardPlayable(index)) return;
@@ -342,16 +356,34 @@ export class App {
     }
     if (battle.canPlay(index)) {
       this.selected = null;
-      const before = this.snapshotBattle();
-      sound.play('card');
-      battle.playCard(index);
-      this.battleActionDone(before);
+      this.resolveCardPlay(index);
     }
+  }
+
+  /** Plays a card after a short fly-toward-the-discard animation on its DOM node. */
+  private resolveCardPlay(index: number, target?: number): void {
+    const battle = this.run.battle!;
+    const before = this.snapshotBattle();
+    sound.play('card');
+    const el = this.root.querySelector(`[data-card="${index}"]`);
+    if (!el) {
+      battle.playCard(index, target);
+      this.battleActionDone(before);
+      return;
+    }
+    el.classList.add('fly-out');
+    this.playLock = true;
+    window.setTimeout(() => {
+      this.playLock = false;
+      if (this.run.phase !== 'battle' || this.onTitle) return;
+      battle.playCard(index, target);
+      this.battleActionDone(before);
+    }, 180);
   }
 
   private onEnemyClick(enemyIndex: number): void {
     const battle = this.run.battle;
-    if (!battle) return;
+    if (!battle || this.enemyPhase || this.playLock) return;
     if (this.potionSelected !== null) {
       const enemy = battle.state.enemies[enemyIndex];
       if (enemy && enemy.hp > 0) {
@@ -365,11 +397,9 @@ export class App {
     }
     if (this.selected === null) return;
     if (battle.canPlay(this.selected, enemyIndex)) {
-      const before = this.snapshotBattle();
-      sound.play('card');
-      battle.playCard(this.selected, enemyIndex);
+      const index = this.selected;
       this.selected = null;
-      this.battleActionDone(before);
+      this.resolveCardPlay(index, enemyIndex);
     }
   }
 
@@ -381,7 +411,7 @@ export class App {
   }
 
   private onPotionClick(index: number): void {
-    if (this.run.phase !== 'battle') return;
+    if (this.run.phase !== 'battle' || this.enemyPhase || this.playLock) return;
     const id = this.run.potions[index];
     if (!id) return;
     if (getPotionDef(id).target === 'enemy') {
@@ -401,12 +431,55 @@ export class App {
   private onEndTurn(): void {
     const battle = this.run.battle;
     if (!battle || battle.state.phase !== 'playerTurn') return;
+    if (this.enemyPhase || this.playLock) return;
     this.selected = null;
-    const before = this.snapshotBattle();
+    this.potionSelected = null;
+    const before = this.snapshotBattle()!;
     battle.endTurn();
-    this.battleActionDone(before);
-    // A survived enemy turn ends with the next hand being dealt.
-    if (this.run.phase === 'battle') sound.play('draw');
+    if (battle.state.phase !== 'playerTurn') {
+      // Battle ended during the enemy turn (e.g. poison/thorns kill or defeat).
+      this.battleActionDone(before);
+      return;
+    }
+    this.playEnemyTurnSequence(before);
+  }
+
+  /**
+   * Cosmetic pacing for the (already resolved) enemy turn: banner, staggered
+   * per-enemy action animations replayed from the pre-turn intents, damage
+   * FX, then the new hand deals in. State is final the whole time; only
+   * presentation is delayed, and input stays locked via `enemyPhase`.
+   */
+  private playEnemyTurnSequence(before: BattleSnapshot): void {
+    const battle = this.run.battle!;
+    this.enemyPhase = true;
+    this.turnBanner = t('enemyTurn');
+    this.render();
+    const actors = battle.state.enemies
+      .map((_, i) => i)
+      .filter((i) => before.enemies[i] && before.enemies[i].hp > 0 && before.intents[i] !== null);
+    const startMs = 700;
+    const stepMs = 430;
+    const alive = () => this.run.phase === 'battle' && this.enemyPhase && !this.onTitle;
+    actors.forEach((enemyIndex, order) => {
+      window.setTimeout(() => {
+        if (!alive()) return;
+        const el = this.root.querySelector(`[data-enemy="${enemyIndex}"]`);
+        el?.classList.add(before.intents[enemyIndex] === 'attack' ? 'lunge' : 'act');
+      }, startMs + order * stepMs);
+    });
+    const fxAt = startMs + Math.max(1, actors.length) * stepMs;
+    window.setTimeout(() => {
+      if (!alive()) return;
+      this.playBattleFx(before);
+    }, fxAt);
+    window.setTimeout(() => {
+      if (!alive()) return;
+      this.enemyPhase = false;
+      this.turnBanner = t('yourTurn');
+      this.render();
+      sound.play('draw');
+    }, fxAt + 850);
   }
 
   /** Whether the node being played right now is the act boss. */
@@ -419,6 +492,10 @@ export class App {
   // --- rendering ---
 
   private render(): void {
+    // Entering a battle opens on the player's turn banner.
+    if (this.run.phase === 'battle' && this.lastPhase !== 'battle') {
+      this.turnBanner = t('yourTurn');
+    }
     let screen: string;
     switch (this.run.phase) {
       case 'map':
@@ -452,8 +529,9 @@ export class App {
     document.body.dataset.phase = this.run.phase;
     const bossBattle = this.run.phase === 'battle' && this.isBossNode();
     sound.setPhase(this.run.phase, bossBattle);
-    const overlays = `${this.pauseOpen ? this.pauseOverlayHtml() : ''}${this.settingsOpen ? this.settingsOverlayHtml() : ''}`;
+    const overlays = `${this.deckOpen ? this.deckOverlayHtml() : ''}${this.pauseOpen ? this.pauseOverlayHtml() : ''}${this.settingsOpen ? this.settingsOverlayHtml() : ''}`;
     this.root.innerHTML = `<div class="game">${this.topBarHtml()}${screen}${overlays}</div>`;
+    this.turnBanner = null; // one-shot: the banner animates out and never re-renders
     // Slide-and-fade the screen in whenever the run phase changes.
     if (this.run.phase !== this.lastPhase) {
       this.root.querySelector('.game > :nth-child(2)')?.classList.add('screen-enter');
@@ -483,18 +561,38 @@ export class App {
         return `<span class="${cls}" data-potion="${i}" title="${def.name}: ${potionDesc(id, def.desc)}${inBattle ? t('clickToUse') : ''}"><img class="chip-icon" src="${artUrl('potions', id)}" alt="${def.name}"></span>`;
       })
       .join('');
+    // Two rows like the original: stats strip on top, relics on their own row.
     return `
       <div class="top-bar">
-        <span class="stat">${iconHtml('ui_hp', 'chip-icon', t('hp'))} ${this.run.hp}/${this.run.maxHp}</span>
-        <span class="stat">${iconHtml('ui_gold', 'chip-icon', t('gold'))} ${this.run.gold}</span>
-        <span class="stat" title="${t('deck')}">${iconHtml('ui_deck', 'chip-icon', t('deck'))} ${this.run.deck.length}</span>
-        <span class="chip-group">${relics}</span>
-        <span class="chip-group">${potions}</span>
-        <span class="top-bar-right">
-          <span class="mute-chip" data-mute title="${t('soundToggle')}">${iconHtml(sound.muted ? 'ui_sound_off' : 'ui_sound_on')}</span>
-          <span class="mute-chip" data-pause title="${t('pauseTitle')}">${iconHtml('ui_menu')}</span>
-          <span class="stat">${iconHtml('ui_floor', 'chip-icon', t('floor'))} ${t('actFloor', this.run.act, floor, this.run.map.rows.length)}</span>
-        </span>
+        <div class="top-bar-main">
+          <span class="stat hp-stat">${iconHtml('ui_hp', 'chip-icon', t('hp'))} ${this.run.hp}/${this.run.maxHp}</span>
+          <span class="stat gold-stat">${iconHtml('ui_gold', 'chip-icon', t('gold'))} ${this.run.gold}</span>
+          <span class="chip-group">${potions}</span>
+          <span class="top-bar-center">${iconHtml('ui_floor', 'chip-icon', t('floor'))} ${t('actFloor', this.run.act, floor, this.run.map.rows.length)}</span>
+          <span class="top-bar-right">
+            <span class="stat deck-chip" data-deck-view title="${t('deck')}">${iconHtml('ui_deck', 'chip-icon', t('deck'))} ${this.run.deck.length}</span>
+            <span class="mute-chip" data-mute title="${t('soundToggle')}">${iconHtml(sound.muted ? 'ui_sound_off' : 'ui_sound_on')}</span>
+            <span class="mute-chip" data-pause title="${t('pauseTitle')}">${iconHtml('ui_menu')}</span>
+          </span>
+        </div>
+        <div class="relic-row">${relics}</div>
+      </div>`;
+  }
+
+  /** Full-deck overlay, opened from the top bar (matches the pile overlay look). */
+  private deckOverlayHtml(): string {
+    const cards = [...this.run.deck]
+      .map((c) => resolveCard(c))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((def) => cardFaceHtml(def))
+      .join('');
+    return `
+      <div class="overlay" data-close-deck>
+        <div class="overlay-box pile-box">
+          <h2>${t('pileCount', t('deck'), this.run.deck.length)}</h2>
+          <div class="card-row wrap">${cards || `<p>${t('empty')}</p>`}</div>
+          <button class="ghost-btn" data-close-deck>${t('close')}</button>
+        </div>
       </div>`;
   }
 
@@ -683,38 +781,52 @@ export class App {
 
   // --- battle screen (structure shared with Day 3) ---
 
+  /**
+   * Original-style combat layout: energy orb + draw pile in the bottom-left
+   * corner, discard (and a smaller exhaust) in the bottom-right, end-turn
+   * button above the discard, hero HP anchored under the sprite, hand fanned
+   * across the bottom centre.
+   */
   private battleScreen(): string {
     const battle = this.run.battle!;
     const { player, enemies, turn } = battle.state;
     const log = this.logOpen
       ? `<div class="log-panel">${battle.state.log.slice(-60).map((l) => `<div>${l}</div>`).join('')}</div>`
       : '';
+    const pileBtn = (
+      pile: 'drawPile' | 'discardPile' | 'exhaustPile',
+      icon: string,
+      cls: string,
+      label: string
+    ) => `
+      <button class="pile-corner ${cls}" data-pile="${pile}" title="${label} (${player[pile].length})">
+        ${iconHtml(icon, 'pile-img', label)}
+        <span class="pile-count">${player[pile].length}</span>
+      </button>`;
+    const banner = this.turnBanner ? `<div class="turn-banner">${this.turnBanner}</div>` : '';
     return `
-      <div class="battle">
-        <div class="turn-label">${t('turn', turn)}</div>
+      <div class="battle ${this.enemyPhase ? 'enemy-phase' : ''}">
         <div class="arena">
-          <div class="hero-side">
-            <img src="${artUrl('bg', 'hero')}" alt="${t('you')}" draggable="false">
-          </div>
-          <div class="enemies-row">${enemies.map((e, i) => this.enemyHtml(e, i)).join('')}</div>
-        </div>
-        <div class="player-row">
-          <div class="player-panel">
+          <div class="hero">
+            <div class="hero-art"><img src="${artUrl('bg', 'hero')}" alt="${t('you')}" draggable="false"></div>
             <div class="actor-name">${t('you')}</div>
             ${this.hpBarHtml(player.hp, player.maxHp, player.block)}
             <div class="statuses">${this.statusesHtml(player.statuses)}</div>
           </div>
-          <div class="energy-orb" title="${t('energy')}" style="background-image:url('${artUrl('frames', 'energy_orb')}')">
-            <span>${player.energy}/${player.maxEnergy}</span>
-          </div>
-          <div class="piles">
-            <span class="pile-link" data-pile="drawPile">${iconHtml('ui_draw', 'pile-icon', t('drawPile'))} ${player.drawPile.length}</span>
-            <span class="pile-link" data-pile="discardPile">${iconHtml('ui_discard', 'pile-icon', t('discardPile'))} ${player.discardPile.length}</span>
-            <span class="pile-link" data-pile="exhaustPile">${iconHtml('ui_exhaust', 'pile-icon', t('exhaustPile'))} ${player.exhaustPile.length}</span>
-          </div>
-          ${this.endTurnButtonHtml()}
+          <div class="enemies-row">${enemies.map((e, i) => this.enemyHtml(e, i)).join('')}</div>
         </div>
+        ${banner}
         <div class="hand">${player.hand.map((c, i) => this.handCardHtml(c, i, player.hand.length)).join('')}</div>
+        <div class="energy-orb" title="${t('energy')}" style="background-image:url('${artUrl('frames', 'energy_orb')}')">
+          <span>${player.energy}/${player.maxEnergy}</span>
+        </div>
+        ${pileBtn('drawPile', 'ui_draw', 'draw', t('drawPile'))}
+        ${pileBtn('exhaustPile', 'ui_exhaust', 'exhaust', t('exhaustPile'))}
+        ${pileBtn('discardPile', 'ui_discard', 'discard', t('discardPile'))}
+        <div class="end-turn-wrap">
+          ${this.endTurnButtonHtml()}
+          <div class="turn-num">${t('turn', turn)}</div>
+        </div>
         <button class="log-toggle ${this.logOpen ? 'open' : ''}" data-toggle-log>${t('battleLog')}</button>
         ${log}
         ${this.pileView ? this.pileOverlayHtml() : ''}
@@ -723,6 +835,7 @@ export class App {
 
   /** Warns when ending the turn would waste energy on still-playable cards. */
   private endTurnButtonHtml(): string {
+    if (this.enemyPhase) return `<button class="end-turn" disabled>${t('enemyTurn')}</button>`;
     const battle = this.run.battle!;
     const player = battle.state.player;
     const wouldWaste =
@@ -793,7 +906,9 @@ export class App {
     const off = index - mid;
     const rot = off * Math.min(4, 34 / Math.max(total, 1));
     const lift = Math.abs(off) * Math.abs(off) * 5;
-    const style = `--rot:${rot.toFixed(2)}deg;--lift:${lift.toFixed(1)}px;--deal:${index * 55}ms;`;
+    // Big hands squeeze tighter so they stay clear of the corner HUD.
+    const overlap = total > 6 ? -16 - (total - 6) * 8 : -16;
+    const style = `--rot:${rot.toFixed(2)}deg;--lift:${lift.toFixed(1)}px;--deal:${index * 55}ms;margin:0 ${overlap}px;`;
     return cardFaceHtml(def, `in-hand ${cls}`, `data-card="${index}"`, style);
   }
 
@@ -1048,6 +1163,15 @@ export class App {
     });
     on('[data-close-pile]', () => {
       this.pileView = null;
+      this.render();
+    });
+    on('[data-deck-view]', () => {
+      sound.play('click');
+      this.deckOpen = true;
+      this.render();
+    });
+    on('[data-close-deck]', () => {
+      this.deckOpen = false;
       this.render();
     });
     on('[data-toggle-log]', () => {
