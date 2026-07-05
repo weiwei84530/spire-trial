@@ -115,7 +115,7 @@ card('clothesline', `${HERO} catching a charging foe across the chest with an ou
 card('uppercut', `${HERO} delivering a rising uppercut, foe lifted off the ground, arc of golden force`);
 card('hemokinesis', `a floating blade of red crystal forming out of swirling crimson mist above the hero's outstretched hand`);
 card('pummel', `rapid flurry of four fist impacts shown as overlapping golden shockwave rings`);
-card('venom_strike', `a green-glowing envenomed shortsword piercing forward through darkness`);
+card('venom_strike', `${HEROINE} lunging with a green-glowing envenomed dagger, thick venom trailing from the blade`);
 card('dash', `${HEROINE} dashing forward low and fast, afterimages trailing, twin daggers held wide`);
 card('disarm', `an enemy's jagged sword spinning away through the air, knocked from a clawed hand`);
 card('flex', `close view of the hero's arm flexing as ember-red power veins ignite under the skin`);
@@ -134,7 +134,7 @@ card('heavy_blade', `${HERO} dragging an enormous greatsword one-handed, blade c
 card('trip', `a shadowy foe tumbling forward over ${HEROINE}'s outstretched leg, off balance`);
 card('emergency_guard', `${HERO} throwing up a hasty shimmering barrier of blue light an instant before impact`);
 card('intimidate', `${HERO} looming forward, cloak billowing, wall of cold indigo dread washing over cowering shadows`);
-card('noxious_blast', `a bursting cloud of luminous green poison gas spreading across the battlefield`);
+card('noxious_blast', `a bursting cloud of luminous green poison gas spreading across the battlefield, swirling toxic fumes only, no figure, no person, no creature`);
 card('skewer', `${HEROINE} thrusting a slender dagger repeatedly, several overlapping teal thrust trails`);
 card('entrench', `${HERO} hunkered behind his shield, second layer of massive stone-blue barrier forming around it`);
 card('seeing_red', `extreme close-up of one eye under the hood, iris burning ember red`);
@@ -163,7 +163,7 @@ card('defend_assassin', `${HEROINE} sweeping her cloak up as a shimmering teal w
 card('bane', `a cursed dagger plunging into a pool of glowing green venom, dark tendrils spreading from the wound`);
 card('dagger_spray', `a fan of small silver throwing knives slicing outward through the dark in a wide spread`);
 card('dagger_throw', `${HEROINE} hurling a single spinning dagger, silver arc of light trailing behind it`);
-card('deflect', `a curved dagger flicking aside an incoming blade, small burst of teal sparks at the parry point`);
+card('deflect', `${HEROINE} flicking an incoming blade aside with a curved dagger, small burst of teal sparks at the parry point`);
 card('dodge_and_roll', `${HEROINE} tumbling low under a sweeping claw, motion arcs of pale teal light curling around her`);
 card('flying_knee', `${HEROINE} leaping knee-first into a shadowy foe, burst of teal impact light`);
 card('outmaneuver', `two ghostly teal footprint trails weaving around a confused shadowy figure in the dark`);
@@ -185,7 +185,7 @@ card('predator', `${HEROINE} pouncing from above with both daggers, eyes gleamin
 card('riddle_with_holes', `five rapid dagger thrust trails punching through a dark silhouette, light shining through the holes`);
 card('thousand_cuts', `a dark figure surrounded by countless hovering slash marks filling the air like rain`);
 card('after_image', `${HEROINE} standing still while a ghostly duplicate of her peels away, translucent teal`);
-card('envenom', `both curved daggers being drawn through a cloud of green venom, blades absorbing the poison glow`);
+card('envenom', `${HEROINE} drawing both her curved daggers through a cloud of green venom, blades absorbing the poison glow`);
 card('grand_finale', `${HEROINE} at the center of a massive circular explosion of silver blade light, final devastating flourish`);
 card('tools_of_the_trade', `an unrolled leather kit of lockpicks, vials and knives, one dagger lifting itself in teal light`);
 card('unload', `${HEROINE} throwing every knife she carries at once, a storm of blades converging on one foe`);
