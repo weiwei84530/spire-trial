@@ -1,4 +1,5 @@
-import type { CardDef, CardInstance } from './types';
+import { getCharacterDef } from './characters';
+import type { CardDef, CardInstance, CardRarity, CharacterId } from './types';
 
 /**
  * Card database. Data-driven: adding a card means adding an entry here.
@@ -846,6 +847,567 @@ define({
   upgrade: { effects: [{ kind: 'damage', amount: 12, target: 'allEnemies' }] },
 });
 
+// --- Assassin starter cards ---
+
+define({
+  id: 'neutralize',
+  name: 'Neutralize',
+  type: 'attack',
+  rarity: 'starter',
+  cost: 0,
+  target: 'enemy',
+  effects: [
+    { kind: 'damage', amount: 3 },
+    { kind: 'applyStatus', status: 'weak', stacks: 1, target: 'enemy' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 4 },
+      { kind: 'applyStatus', status: 'weak', stacks: 2, target: 'enemy' },
+    ],
+  },
+});
+
+define({
+  // Original discards a card; this engine has no discard-from-hand effect yet.
+  id: 'survivor',
+  name: 'Survivor',
+  type: 'skill',
+  rarity: 'starter',
+  cost: 1,
+  target: 'none',
+  effects: [{ kind: 'block', amount: 8 }],
+  upgrade: { effects: [{ kind: 'block', amount: 11 }] },
+});
+
+define({
+  id: 'crippling_cloud',
+  name: 'Crippling Cloud',
+  type: 'skill',
+  rarity: 'uncommon',
+  cost: 2,
+  target: 'none',
+  exhaust: true,
+  effects: [
+    { kind: 'applyStatus', status: 'poison', stacks: 4, target: 'allEnemies' },
+    { kind: 'applyStatus', status: 'weak', stacks: 2, target: 'allEnemies' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'applyStatus', status: 'poison', stacks: 7, target: 'allEnemies' },
+      { kind: 'applyStatus', status: 'weak', stacks: 2, target: 'allEnemies' },
+    ],
+  },
+});
+
+define({
+  id: 'twin_fangs',
+  name: 'Twin Fangs',
+  type: 'attack',
+  rarity: 'rare',
+  cost: 2,
+  target: 'enemy',
+  effects: [
+    { kind: 'damage', amount: 6, times: 2 },
+    { kind: 'applyStatus', status: 'poison', stacks: 4, target: 'enemy' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 8, times: 2 },
+      { kind: 'applyStatus', status: 'poison', stacks: 6, target: 'enemy' },
+    ],
+  },
+});
+
+// --- Silent card-set port (wiki values; simplifications noted per card) ---
+
+define({
+  id: 'bane',
+  name: 'Bane',
+  type: 'attack',
+  rarity: 'common',
+  cost: 1,
+  target: 'enemy',
+  effects: [
+    { kind: 'damage', amount: 7 },
+    { kind: 'damage', amount: 7, onlyIfTargetPoisoned: true },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 10 },
+      { kind: 'damage', amount: 10, onlyIfTargetPoisoned: true },
+    ],
+  },
+});
+
+define({
+  id: 'dagger_spray',
+  name: 'Dagger Spray',
+  type: 'attack',
+  rarity: 'common',
+  cost: 1,
+  target: 'none',
+  effects: [{ kind: 'damage', amount: 4, times: 2, target: 'allEnemies' }],
+  upgrade: { effects: [{ kind: 'damage', amount: 6, times: 2, target: 'allEnemies' }] },
+});
+
+define({
+  // Original lets you choose the discard; this engine discards at random.
+  id: 'dagger_throw',
+  name: 'Dagger Throw',
+  type: 'attack',
+  rarity: 'common',
+  cost: 1,
+  target: 'enemy',
+  effects: [
+    { kind: 'damage', amount: 9 },
+    { kind: 'draw', count: 1 },
+    { kind: 'discardRandom', count: 1 },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 12 },
+      { kind: 'draw', count: 1 },
+      { kind: 'discardRandom', count: 1 },
+    ],
+  },
+});
+
+define({
+  id: 'deflect',
+  name: 'Deflect',
+  type: 'skill',
+  rarity: 'common',
+  cost: 0,
+  target: 'none',
+  effects: [{ kind: 'block', amount: 4 }],
+  upgrade: { effects: [{ kind: 'block', amount: 7 }] },
+});
+
+define({
+  id: 'dodge_and_roll',
+  name: 'Dodge and Roll',
+  type: 'skill',
+  rarity: 'common',
+  cost: 1,
+  target: 'none',
+  effects: [
+    { kind: 'block', amount: 4 },
+    { kind: 'applyStatus', status: 'nextTurnBlock', stacks: 4, target: 'self' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'block', amount: 6 },
+      { kind: 'applyStatus', status: 'nextTurnBlock', stacks: 6, target: 'self' },
+    ],
+  },
+});
+
+define({
+  id: 'flying_knee',
+  name: 'Flying Knee',
+  type: 'attack',
+  rarity: 'common',
+  cost: 1,
+  target: 'enemy',
+  effects: [
+    { kind: 'damage', amount: 8 },
+    { kind: 'applyStatus', status: 'nextTurnEnergy', stacks: 1, target: 'self' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 11 },
+      { kind: 'applyStatus', status: 'nextTurnEnergy', stacks: 1, target: 'self' },
+    ],
+  },
+});
+
+define({
+  id: 'outmaneuver',
+  name: 'Outmaneuver',
+  type: 'skill',
+  rarity: 'common',
+  cost: 1,
+  target: 'none',
+  effects: [{ kind: 'applyStatus', status: 'nextTurnEnergy', stacks: 2, target: 'self' }],
+  upgrade: { effects: [{ kind: 'applyStatus', status: 'nextTurnEnergy', stacks: 3, target: 'self' }] },
+});
+
+define({
+  // Original: enemies lose 6 strength this turn only. No temporary-strength
+  // mechanic here, so it is a smaller permanent loss instead.
+  id: 'piercing_wail',
+  name: 'Piercing Wail',
+  type: 'skill',
+  rarity: 'common',
+  cost: 1,
+  target: 'none',
+  exhaust: true,
+  effects: [{ kind: 'applyStatus', status: 'strength', stacks: -2, target: 'allEnemies' }],
+  upgrade: { effects: [{ kind: 'applyStatus', status: 'strength', stacks: -3, target: 'allEnemies' }] },
+});
+
+define({
+  id: 'slice',
+  name: 'Slice',
+  type: 'attack',
+  rarity: 'common',
+  cost: 0,
+  target: 'enemy',
+  effects: [{ kind: 'damage', amount: 6 }],
+  upgrade: { effects: [{ kind: 'damage', amount: 9 }] },
+});
+
+define({
+  // Discard is random here (original: chosen).
+  id: 'acrobatics',
+  name: 'Acrobatics',
+  type: 'skill',
+  rarity: 'common',
+  cost: 1,
+  target: 'none',
+  effects: [
+    { kind: 'draw', count: 3 },
+    { kind: 'discardRandom', count: 1 },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'draw', count: 4 },
+      { kind: 'discardRandom', count: 1 },
+    ],
+  },
+});
+
+define({
+  // Discard is random here (original: chosen).
+  id: 'prepared',
+  name: 'Prepared',
+  type: 'skill',
+  rarity: 'common',
+  cost: 0,
+  target: 'none',
+  effects: [
+    { kind: 'draw', count: 1 },
+    { kind: 'discardRandom', count: 1 },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'draw', count: 2 },
+      { kind: 'discardRandom', count: 2 },
+    ],
+  },
+});
+
+define({
+  id: 'accuracy',
+  name: 'Accuracy',
+  type: 'power',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'none',
+  effects: [{ kind: 'applyStatus', status: 'accuracy', stacks: 4, target: 'self' }],
+  upgrade: { effects: [{ kind: 'applyStatus', status: 'accuracy', stacks: 6, target: 'self' }] },
+});
+
+define({
+  id: 'all_out_attack',
+  name: 'All-Out Attack',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'none',
+  effects: [
+    { kind: 'damage', amount: 10, target: 'allEnemies' },
+    { kind: 'discardRandom', count: 1 },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 14, target: 'allEnemies' },
+      { kind: 'discardRandom', count: 1 },
+    ],
+  },
+});
+
+define({
+  id: 'backstab',
+  name: 'Backstab',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 0,
+  target: 'enemy',
+  innate: true,
+  exhaust: true,
+  effects: [{ kind: 'damage', amount: 11 }],
+  upgrade: { effects: [{ kind: 'damage', amount: 15 }] },
+});
+
+define({
+  id: 'blur',
+  name: 'Blur',
+  type: 'skill',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'none',
+  effects: [
+    { kind: 'block', amount: 5 },
+    { kind: 'applyStatus', status: 'blur', stacks: 1, target: 'self' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'block', amount: 8 },
+      { kind: 'applyStatus', status: 'blur', stacks: 1, target: 'self' },
+    ],
+  },
+});
+
+define({
+  id: 'bouncing_flask',
+  name: 'Bouncing Flask',
+  type: 'skill',
+  rarity: 'uncommon',
+  cost: 2,
+  target: 'none',
+  effects: [
+    { kind: 'applyStatus', status: 'poison', stacks: 3, target: 'randomEnemy' },
+    { kind: 'applyStatus', status: 'poison', stacks: 3, target: 'randomEnemy' },
+    { kind: 'applyStatus', status: 'poison', stacks: 3, target: 'randomEnemy' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'applyStatus', status: 'poison', stacks: 3, target: 'randomEnemy' },
+      { kind: 'applyStatus', status: 'poison', stacks: 3, target: 'randomEnemy' },
+      { kind: 'applyStatus', status: 'poison', stacks: 3, target: 'randomEnemy' },
+      { kind: 'applyStatus', status: 'poison', stacks: 3, target: 'randomEnemy' },
+    ],
+  },
+});
+
+define({
+  id: 'catalyst',
+  name: 'Catalyst',
+  type: 'skill',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'enemy',
+  exhaust: true,
+  effects: [{ kind: 'multiplyStatus', status: 'poison', factor: 2 }],
+  upgrade: { effects: [{ kind: 'multiplyStatus', status: 'poison', factor: 3 }] },
+});
+
+define({
+  // Counts the attacks played this turn, including Finisher itself.
+  id: 'finisher',
+  name: 'Finisher',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'enemy',
+  effects: [{ kind: 'damage', amount: 6, times: 'attacksThisTurn' }],
+  upgrade: { effects: [{ kind: 'damage', amount: 8, times: 'attacksThisTurn' }] },
+});
+
+define({
+  id: 'flechettes',
+  name: 'Flechettes',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'enemy',
+  effects: [{ kind: 'damage', amount: 4, times: 'skillsInHand' }],
+  upgrade: { effects: [{ kind: 'damage', amount: 6, times: 'skillsInHand' }] },
+});
+
+define({
+  id: 'infinite_blades',
+  name: 'Infinite Blades',
+  type: 'power',
+  rarity: 'uncommon',
+  cost: 1,
+  target: 'none',
+  effects: [{ kind: 'applyStatus', status: 'infiniteBlades', stacks: 1, target: 'self' }],
+  upgrade: { innate: true },
+});
+
+define({
+  id: 'leg_sweep',
+  name: 'Leg Sweep',
+  type: 'skill',
+  rarity: 'uncommon',
+  cost: 2,
+  target: 'enemy',
+  effects: [
+    { kind: 'applyStatus', status: 'weak', stacks: 2, target: 'enemy' },
+    { kind: 'block', amount: 11 },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'applyStatus', status: 'weak', stacks: 3, target: 'enemy' },
+      { kind: 'block', amount: 14 },
+    ],
+  },
+});
+
+define({
+  id: 'predator',
+  name: 'Predator',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 2,
+  target: 'enemy',
+  effects: [
+    { kind: 'damage', amount: 15 },
+    { kind: 'applyStatus', status: 'nextTurnDraw', stacks: 2, target: 'self' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 20 },
+      { kind: 'applyStatus', status: 'nextTurnDraw', stacks: 2, target: 'self' },
+    ],
+  },
+});
+
+define({
+  id: 'riddle_with_holes',
+  name: 'Riddle with Holes',
+  type: 'attack',
+  rarity: 'uncommon',
+  cost: 2,
+  target: 'enemy',
+  effects: [{ kind: 'damage', amount: 3, times: 5 }],
+  upgrade: { effects: [{ kind: 'damage', amount: 4, times: 5 }] },
+});
+
+define({
+  id: 'thousand_cuts',
+  name: 'A Thousand Cuts',
+  type: 'power',
+  rarity: 'rare',
+  cost: 2,
+  target: 'none',
+  effects: [{ kind: 'applyStatus', status: 'thousandCuts', stacks: 1, target: 'self' }],
+  upgrade: { effects: [{ kind: 'applyStatus', status: 'thousandCuts', stacks: 2, target: 'self' }] },
+});
+
+define({
+  id: 'after_image',
+  name: 'After Image',
+  type: 'power',
+  rarity: 'rare',
+  cost: 1,
+  target: 'none',
+  effects: [{ kind: 'applyStatus', status: 'afterImage', stacks: 1, target: 'self' }],
+  upgrade: { innate: true },
+});
+
+define({
+  id: 'envenom',
+  name: 'Envenom',
+  type: 'power',
+  rarity: 'rare',
+  cost: 2,
+  target: 'none',
+  effects: [{ kind: 'applyStatus', status: 'envenom', stacks: 1, target: 'self' }],
+  upgrade: { cost: 1 },
+});
+
+define({
+  id: 'grand_finale',
+  name: 'Grand Finale',
+  type: 'attack',
+  rarity: 'rare',
+  cost: 0,
+  target: 'none',
+  playCondition: 'drawPileEmpty',
+  effects: [{ kind: 'damage', amount: 50, target: 'allEnemies' }],
+  upgrade: { effects: [{ kind: 'damage', amount: 60, target: 'allEnemies' }] },
+});
+
+define({
+  // Original: draw 1 then choose a discard; discard is random here.
+  id: 'tools_of_the_trade',
+  name: 'Tools of the Trade',
+  type: 'power',
+  rarity: 'rare',
+  cost: 1,
+  target: 'none',
+  effects: [{ kind: 'applyStatus', status: 'toolsOfTrade', stacks: 1, target: 'self' }],
+  upgrade: { cost: 0 },
+});
+
+define({
+  id: 'unload',
+  name: 'Unload',
+  type: 'attack',
+  rarity: 'rare',
+  cost: 1,
+  target: 'enemy',
+  effects: [
+    { kind: 'damage', amount: 14 },
+    { kind: 'discardNonAttacks' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'damage', amount: 18 },
+      { kind: 'discardNonAttacks' },
+    ],
+  },
+});
+
+define({
+  id: 'wraith_form',
+  name: 'Wraith Form',
+  type: 'power',
+  rarity: 'rare',
+  cost: 3,
+  target: 'none',
+  effects: [
+    { kind: 'applyStatus', status: 'intangible', stacks: 2, target: 'self' },
+    { kind: 'applyStatus', status: 'wraithForm', stacks: 1, target: 'self' },
+  ],
+  upgrade: {
+    effects: [
+      { kind: 'applyStatus', status: 'intangible', stacks: 3, target: 'self' },
+      { kind: 'applyStatus', status: 'wraithForm', stacks: 1, target: 'self' },
+    ],
+  },
+});
+
+// --- Character card pools ---
+// Cards not listed in either pool are neutral and offered to every character.
+// Data lives here (not per-define) so the split is auditable in one place.
+
+const WARRIOR_CARDS = [
+  'bash', 'cleave', 'pommel_strike', 'twin_strike', 'iron_wave', 'shrug_it_off',
+  'inflame', 'bludgeon', 'offering', 'anger', 'wild_strike', 'reckless_charge',
+  'heavy_armor', 'bloodletting', 'battle_trance', 'clothesline', 'uppercut',
+  'hemokinesis', 'pummel', 'disarm', 'flex', 'shockwave', 'seeing_red',
+  'entrench', 'barricade', 'demon_form', 'berserk', 'whirlwind', 'metallicize',
+  'heavy_blade', 'emergency_guard', 'intimidate', 'impervious',
+];
+const ASSASSIN_CARDS = [
+  'neutralize', 'survivor', 'sucker_punch', 'backflip', 'cloak_and_dagger',
+  'quick_slash', 'flurry', 'trip', 'deadly_venom', 'venom_strike',
+  'noxious_blast', 'blade_dance', 'dash', 'skewer', 'terror', 'footwork',
+  'caltrops', 'crippling_cloud', 'die_die_die', 'adrenaline', 'noxious_fumes',
+  'twin_fangs',
+  // Silent-set port
+  'bane', 'dagger_spray', 'dagger_throw', 'deflect', 'dodge_and_roll',
+  'flying_knee', 'outmaneuver', 'piercing_wail', 'slice', 'acrobatics',
+  'prepared', 'accuracy', 'all_out_attack', 'backstab', 'blur',
+  'bouncing_flask', 'catalyst', 'finisher', 'flechettes', 'infinite_blades',
+  'leg_sweep', 'predator', 'riddle_with_holes', 'thousand_cuts', 'after_image',
+  'envenom', 'grand_finale', 'tools_of_the_trade', 'unload', 'wraith_form',
+];
+for (const id of WARRIOR_CARDS) getCardDef(id).character = 'warrior';
+for (const id of ASSASSIN_CARDS) getCardDef(id).character = 'assassin';
+
+/** Reward/shop pool: playable cards of a rarity available to this character. */
+export function cardPool(character: CharacterId, rarity: CardRarity): string[] {
+  return Object.values(CARDS)
+    .filter((c) => c.rarity === rarity && !c.unplayable && (!c.character || c.character === character))
+    .map((c) => c.id);
+}
+
 export function getCardDef(defId: string): CardDef {
   const def = CARDS[defId];
   if (!def) throw new Error(`Unknown card: ${defId}`);
@@ -871,11 +1433,7 @@ export function ensureInstanceIdAbove(maxSeen: number): void {
   if (maxSeen >= nextInstanceId) nextInstanceId = maxSeen + 1;
 }
 
-/** The starting deck: 5 Strikes, 4 Defends, 1 Bash. */
-export function makeStarterDeck(): CardInstance[] {
-  const deck: CardInstance[] = [];
-  for (let i = 0; i < 5; i++) deck.push(makeCard('strike'));
-  for (let i = 0; i < 4; i++) deck.push(makeCard('defend'));
-  deck.push(makeCard('bash'));
-  return deck;
+/** The character's starting deck (defaults to the warrior's 5/4/1 kit). */
+export function makeStarterDeck(character: CharacterId = 'warrior'): CardInstance[] {
+  return getCharacterDef(character).starterCards.map((id) => makeCard(id));
 }

@@ -5,17 +5,20 @@
  * places that touch the DOM.
  */
 import { resolveCard, getCardDef } from '../engine/cards';
+import { CHARACTERS } from '../engine/characters';
 import { getPotionDef } from '../engine/potions';
 import { getRelicDef } from '../engine/relics';
 import { Run, type RunSave } from '../engine/run';
 import { GRID_COLS } from '../engine/map';
 import type { MapNode, NodeKind } from '../engine/map';
-import type { ActorRef, BattleEvent, CardDef, CardInstance, EnemyState } from '../engine/types';
+import type { ActorRef, BattleEvent, CardDef, CardInstance, CharacterId, EnemyState } from '../engine/types';
 import type { IntentPreview } from '../engine/battle';
 import { calcAttackDamage } from '../engine/statuses';
 import { cardText, type CardTextCtx } from './describe';
 import {
   cardName,
+  characterDesc,
+  characterName,
   cardTypeName,
   enemyName,
   eventChoiceLabel,
@@ -143,8 +146,12 @@ const ENEMY_VIS: Record<string, EnemyVis> = {
   the_shadow: { w: 245, h: 300, fly: true, gnd: 5 },
 };
 const DEFAULT_VIS: EnemyVis = { w: 150, h: 160 };
-/** Hero sprite: same transparent-bottom trim (7% of ~200px render height). */
-const HERO_GND = 13;
+/** Per-character hero sprite (bg/ art id) and its transparent-bottom trim
+    (alpha-scan ratio x ~200px render height, like ENEMY_VIS gnd). */
+const HERO_VIS: Record<CharacterId, { art: string; gnd: number }> = {
+  warrior: { art: 'hero', gnd: 13 },
+  assassin: { art: 'hero_assassin', gnd: 13 },
+};
 
 /** Card face background texture per card type. */
 const CARD_FRAME: Record<string, string> = {
@@ -166,6 +173,13 @@ function tipAttr(title: string, body = ''): string {
   return `data-tip="${attr(html)}"`;
 }
 
+/** Character whose art variants the card renderer uses (set on every render). */
+let artCharacter: CharacterId = 'warrior';
+/** Cards shared across characters that still get character-specific art. */
+const CHAR_CARD_ART: Partial<Record<CharacterId, Record<string, string>>> = {
+  assassin: { strike: 'strike_assassin', defend: 'defend_assassin' },
+};
+
 /** Shared card face used by the hand, rewards, and the campfire deck list. */
 function cardFaceHtml(
   def: CardDef,
@@ -184,7 +198,7 @@ function cardFaceHtml(
         <div class="card-name">${cardName(def)}</div>
         <div class="card-type">${cardTypeName(def.type)}</div>
       </div>
-      <div class="card-art"><img src="${artUrl('cards', def.id)}" alt="" draggable="false"></div>
+      <div class="card-art"><img src="${artUrl('cards', CHAR_CARD_ART[artCharacter]?.[def.id] ?? def.id)}" alt="" draggable="false"></div>
       <div class="card-text">${cardText(def, ctx)}</div>
     </div>`;
 }
@@ -230,6 +244,10 @@ export class App {
   private deckOpen = false;
   /** Abandon-save confirmation dialog visibility (title screen). */
   private abandonConfirm = false;
+  /** Character-select view (title screen) visibility. */
+  private charSelect = false;
+  /** Character highlighted on the select screen. */
+  private chosenChar: CharacterId = 'warrior';
   /** Cheat menu overlay visibility. */
   private cheatOpen = false;
   /** Cheat toggles chosen before a run exists; copied onto each new/resumed run. */
@@ -334,10 +352,9 @@ export class App {
     // One vertical column: every entry shares the same width so edges align (V3).
     document.body.dataset.phase = 'title';
     sound.setPhase('title');
-    this.root.innerHTML = `
-      <div class="game">
-        <div class="dialog-screen center title-screen screen-enter">
-          <div class="embers">${emberHtml(16)}</div>
+    const inner = this.charSelect
+      ? this.charSelectHtml()
+      : `
           <img class="logo-img" src="${artUrl('bg', locale() === 'zh' ? 'logo' : 'logo_en')}" alt="Spire Trial" draggable="false">
           <p class="game-subtitle">${t('subtitle')}</p>
           ${saveInfo}
@@ -345,7 +362,12 @@ export class App {
             ${buttons}
             <button class="ghost-btn" data-open-settings>${t('settings')}</button>
             <button class="ghost-btn" data-open-cheats>${t('cheatMenu')}</button>
-          </div>
+          </div>`;
+    this.root.innerHTML = `
+      <div class="game">
+        <div class="dialog-screen center title-screen screen-enter">
+          <div class="embers">${emberHtml(16)}</div>
+          ${inner}
         </div>
         ${this.settingsOpen ? this.settingsOverlayHtml() : ''}
         ${this.cheatOpen ? this.cheatOverlayHtml() : ''}
@@ -354,8 +376,10 @@ export class App {
       </div>`;
     this.root.querySelector('[data-start]')?.addEventListener('click', () => {
       sound.play('click');
-      this.newRun();
+      this.charSelect = true;
+      this.renderTitle();
     });
+    this.bindCharSelect();
     this.root.querySelector('[data-resume]')?.addEventListener('click', () => {
       sound.play('click');
       this.run = Run.fromSave(this.pendingResume!);
@@ -374,7 +398,8 @@ export class App {
       this.abandonConfirm = false;
       this.pendingResume = null;
       clearSave();
-      this.newRun();
+      this.charSelect = true;
+      this.renderTitle();
     });
     this.root.querySelector('[data-cancel-abandon]')?.addEventListener('click', () => {
       sound.play('click');
@@ -382,6 +407,54 @@ export class App {
       this.renderTitle();
     });
     this.bindMenus();
+  }
+
+  /** StS-style character select: portrait panels + an embark button. */
+  private charSelectHtml(): string {
+    const panels = Object.values(CHARACTERS)
+      .map((c) => {
+        const relic = getRelicDef(c.startingRelic);
+        const sel = this.chosenChar === c.id ? 'selected' : '';
+        return `
+          <button class="char-choice ${sel}" data-pick-char="${c.id}">
+            <img class="char-portrait" src="${artUrl('bg', HERO_VIS[c.id].art)}" alt="${characterName(c.id, c.name)}" draggable="false">
+            <span class="char-name">${characterName(c.id, c.name)}</span>
+            <span class="char-desc">${characterDesc(c.id)}</span>
+            <span class="char-stats">${iconHtml('ui_hp', 'inline-icon')} ${t('charMaxHp', c.maxHp)}</span>
+            <span class="char-relic">
+              <img class="inline-icon" src="${artUrl('relics', c.startingRelic)}" alt="">
+              ${relicName(c.startingRelic, relic.name)} — ${relicDesc(c.startingRelic, relic.desc)}
+            </span>
+          </button>`;
+      })
+      .join('');
+    return `
+      <h2 class="char-select-title">${t('chooseCharacter')}</h2>
+      <div class="char-select-row">${panels}</div>
+      <div class="title-menu">
+        <button class="primary-btn" data-embark>${t('embark')}</button>
+        <button class="ghost-btn" data-char-back>${t('back')}</button>
+      </div>`;
+  }
+
+  private bindCharSelect(): void {
+    this.root.querySelectorAll<HTMLElement>('[data-pick-char]').forEach((el) => {
+      el.addEventListener('click', () => {
+        sound.play('click');
+        this.chosenChar = el.dataset.pickChar as CharacterId;
+        this.renderTitle();
+      });
+    });
+    this.root.querySelector('[data-embark]')?.addEventListener('click', () => {
+      sound.play('click');
+      this.charSelect = false;
+      this.newRun(this.chosenChar);
+    });
+    this.root.querySelector('[data-char-back]')?.addEventListener('click', () => {
+      sound.play('click');
+      this.charSelect = false;
+      this.renderTitle();
+    });
   }
 
   private abandonOverlayHtml(): string {
@@ -420,10 +493,10 @@ export class App {
       </div>`;
   }
 
-  private newRun(): void {
+  private newRun(character: CharacterId = 'warrior'): void {
     this.cancelReplay();
     clearSave();
-    this.run = new Run((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0);
+    this.run = new Run((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0, undefined, character);
     Object.assign(this.run.cheats, this.cheatDefaults);
     this.selected = null;
     this.potionSelected = null;
@@ -1059,6 +1132,7 @@ export class App {
   private render(): void {
     // A full render always shows the true final state; abandon any mid-replay patching.
     this.cancelReplay();
+    artCharacter = this.run.character;
     // Effects only ever belong to the battle screen; drop leftovers elsewhere.
     if (this.run.phase !== 'battle') this.fxLayer.replaceChildren();
     // Entering a battle opens on the player's turn banner with a fresh deal.
@@ -1298,7 +1372,7 @@ export class App {
     on('[data-confirm-restart]', () => {
       sound.play('click');
       this.restartConfirm = false;
-      this.newRun();
+      this.newRun(this.run?.character ?? this.chosenChar);
     });
     on('[data-cancel-restart]', () => {
       sound.play('click');
@@ -1485,8 +1559,8 @@ export class App {
     return `
       <div class="battle ${this.enemyPhase ? 'enemy-phase' : ''}">
         <div class="arena" data-enemy-count="${enemies.length}">
-          <div class="hero" style="--gnd:${HERO_GND}px">
-            <div class="hero-art"><img src="${artUrl('bg', 'hero')}" alt="${t('you')}" draggable="false"></div>
+          <div class="hero" style="--gnd:${HERO_VIS[this.run.character].gnd}px">
+            <div class="hero-art"><img src="${artUrl('bg', HERO_VIS[this.run.character].art)}" alt="${t('you')}" draggable="false"></div>
             <div class="actor-name">${t('you')}</div>
             ${this.hpBarHtml(player.hp, player.maxHp, player.block)}
             <div class="statuses">${this.statusesHtml(player.statuses)}</div>
@@ -1585,7 +1659,14 @@ export class App {
     let total = 0;
     for (const effect of def.effects) {
       if (effect.kind !== 'damage') continue;
-      const times = effect.times === 'x' ? battle.state.player.energy : (effect.times ?? 1);
+      if (effect.onlyIfTargetPoisoned && !(enemy.statuses['poison'] ?? 0)) continue;
+      // Dynamic hit counts (Finisher/Flechettes) are shown as a single hit.
+      const times =
+        effect.times === 'x'
+          ? battle.state.player.energy
+          : typeof effect.times === 'number'
+            ? effect.times
+            : 1;
       total += calcAttackDamage(effect.amount, battle.state.player, enemy) * times;
     }
     return total;
@@ -2131,7 +2212,7 @@ export class App {
       this.logOpen = !this.logOpen;
       this.render();
     });
-    on('[data-new-run]', () => this.newRun());
+    on('[data-new-run]', () => this.newRun(this.run?.character ?? this.chosenChar));
     this.bindMenus();
     const log = this.root.querySelector('.log-panel');
     if (log) log.scrollTop = log.scrollHeight;

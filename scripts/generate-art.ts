@@ -146,6 +146,49 @@ card('whirlwind', `${HERO} spinning with sword extended, tornado of golden slash
 card('metallicize', `the hero's skin turning to dark polished iron from the forearm up, reflective and cold`);
 card('dramatic_entrance', `${HERO} crashing down into the battlefield from above, cloak flared, impact ring of golden light`);
 
+// The second playable character: a female assassin; keep her consistent too.
+const HEROINE =
+  'a lithe female assassin with a short dark braid, fitted teal-green hooded leathers and a grey half-mask, twin curved daggers';
+
+card('neutralize', `${HEROINE} flickering past a foe in a blur, one dagger drawing a thin pale-green cut across the dark`);
+card('survivor', `${HEROINE} crouched low under her cloak among falling debris, teal ward light tracing its edge`);
+card('crippling_cloud', `a wide bank of luminous green-violet toxic mist rolling over several staggering shadowy figures`);
+card('twin_fangs', `two serpent-shaped dagger slashes of venom-green light striking the same point like biting fangs`);
+// Character-specific art for the shared starter cards.
+card('strike_assassin', `${HEROINE} lunging with one curved dagger, a thin arc of teal light tracing the slash`);
+card('defend_assassin', `${HEROINE} sweeping her cloak up as a shimmering teal ward deflects a blow`);
+// Silent-set port
+card('bane', `a cursed dagger plunging into a pool of glowing green venom, dark tendrils spreading from the wound`);
+card('dagger_spray', `a fan of small silver throwing knives slicing outward through the dark in a wide spread`);
+card('dagger_throw', `${HEROINE} hurling a single spinning dagger, silver arc of light trailing behind it`);
+card('deflect', `a curved dagger flicking aside an incoming blade, small burst of teal sparks at the parry point`);
+card('dodge_and_roll', `${HEROINE} tumbling low under a sweeping claw, motion arcs of pale teal light curling around her`);
+card('flying_knee', `${HEROINE} leaping knee-first into a shadowy foe, burst of teal impact light`);
+card('outmaneuver', `two ghostly teal footprint trails weaving around a confused shadowy figure in the dark`);
+card('piercing_wail', `a hooded figure screaming, expanding rings of pale sonic distortion pushing shadows back`);
+card('slice', `a single clean horizontal dagger slash trail of cold silver light across darkness`);
+card('acrobatics', `${HEROINE} mid-cartwheel between spectral floating cards, teal ribbons of motion`);
+card('prepared', `gloved hands fanning three spectral cards over a belt of sheathed knives, faint teal glow`);
+card('accuracy', `a floating dagger aligned with three concentric glowing rings, perfect aim lines converging`);
+card('all_out_attack', `${HEROINE} exploding into a spinning storm of dagger slashes, silhouettes reeling on all sides`);
+card('backstab', `${HEROINE} striking from behind a shadowy figure, dagger buried between its shoulders, cold light`);
+card('blur', `${HEROINE} splitting into three translucent afterimages, edges dissolving into teal mist`);
+card('bouncing_flask', `a corked glass flask of luminous green poison ricocheting between shadowy figures, droplets scattering`);
+card('catalyst', `a vial of virulent green liquid boiling over, poison veins spreading and multiplying across dark flesh`);
+card('finisher', `${HEROINE} delivering a final descending strike, all previous slash trails converging into one point`);
+card('flechettes', `a volley of needle-thin darts streaking through darkness in tight formation`);
+card('infinite_blades', `an endless spiral of conjured spectral daggers materializing out of teal mist`);
+card('leg_sweep', `${HEROINE} spinning low, her extended leg sweeping a shadowy foe off its feet`);
+card('predator', `${HEROINE} pouncing from above with both daggers, eyes gleaming like a hunting cat`);
+card('riddle_with_holes', `five rapid dagger thrust trails punching through a dark silhouette, light shining through the holes`);
+card('thousand_cuts', `a dark figure surrounded by countless hovering slash marks filling the air like rain`);
+card('after_image', `${HEROINE} standing still while a ghostly duplicate of her peels away, translucent teal`);
+card('envenom', `both curved daggers being drawn through a cloud of green venom, blades absorbing the poison glow`);
+card('grand_finale', `${HEROINE} at the center of a massive circular explosion of silver blade light, final devastating flourish`);
+card('tools_of_the_trade', `an unrolled leather kit of lockpicks, vials and knives, one dagger lifting itself in teal light`);
+card('unload', `${HEROINE} throwing every knife she carries at once, a storm of blades converging on one foe`);
+card('wraith_form', `${HEROINE} dissolving into a towering translucent wraith of dark teal smoke, hollow glowing eyes`);
+
 // --- Enemy sprites (19) ---
 
 enemy('jaw_worm', 'a fat segmented worm monster rearing up, enormous circular mouth of inward teeth, mottled green hide');
@@ -171,6 +214,11 @@ enemy('boss_maw', 'a gigantic wall of flesh that is mostly one enormous gaping m
 // --- Relic icons (7) ---
 
 relic('burning_blood', 'a faceted vial of luminous burning crimson blood, small flame dancing at its mouth');
+relic(
+  'snake_ring',
+  'an ornate silver finger ring shaped as a coiled serpent biting its own tail, emerald eyes glinting, ' +
+    'the ring floating alone in empty space — no backdrop disc, no plate, no pedestal, no circle behind it',
+);
 relic('vajra', 'an ornate golden vajra thunderbolt scepter, crackling faintly');
 relic('anchor', 'a heavy barnacled iron ship anchor with a coil of rope, cold blue sheen');
 relic('bag_of_preparation', 'a worn leather adventurer satchel, buckles open, faint golden light spilling out');
@@ -215,6 +263,17 @@ bg(
     `${STYLE} Isolated subject on a fully transparent background, no ground, no shadow.`
 );
 // hero is transparent despite living in bg/: patch it after the fact.
+ASSETS[ASSETS.length - 1].transparent = true;
+ASSETS[ASSETS.length - 1].size = '1024x1536';
+
+bg(
+  'hero_assassin',
+  'Full-body game sprite of a lithe female assassin hero with a short dark braid, fitted teal-green hooded ' +
+    'leathers and a grey half-mask, twin curved daggers held low in both hands, standing in a light ready ' +
+    'stance facing slightly toward the viewer\'s right, feet at the bottom, whole body visible with margin. ' +
+    `${STYLE} Isolated subject on a fully transparent background, no ground, no shadow.`
+);
+// Same transparent-sprite treatment as the first hero.
 ASSETS[ASSETS.length - 1].transparent = true;
 ASSETS[ASSETS.length - 1].size = '1024x1536';
 
@@ -369,6 +428,18 @@ icon('status_thorns', `a ring of sharp interlocking briar thorns emblem, ${STATU
 icon('status_energized', `a bold golden lightning bolt emblem, ${STATUS_ICON_STYLE}`);
 icon('status_barricade', `a sturdy stone tower-shield wall emblem with blue glow, ${STATUS_ICON_STYLE}`);
 icon('status_noxious', `a swirling cloud of luminous green fumes emblem, ${STATUS_ICON_STYLE}`);
+icon('status_nextTurnBlock', `an hourglass fused with a small shield emblem, sand glowing blue, ${STATUS_ICON_STYLE}`);
+icon('status_nextTurnEnergy', `a charging golden orb emblem with rising spark trails, ${STATUS_ICON_STYLE}`);
+icon('status_nextTurnDraw', `a fanned trio of glowing card backs emblem with a forward arrow, ${STATUS_ICON_STYLE}`);
+icon('status_blur', `a fading double-exposure silhouette emblem trailing pale afterimages, ${STATUS_ICON_STYLE}`);
+icon('status_accuracy', `a thin dagger piercing the center of a small target reticle emblem, ${STATUS_ICON_STYLE}`);
+icon('status_infiniteBlades', `a circular loop of small floating daggers emblem, silver glint, ${STATUS_ICON_STYLE}`);
+icon('status_toolsOfTrade', `a crossed lockpick and dagger over a small pouch emblem, ${STATUS_ICON_STYLE}`);
+icon('status_thousandCuts', `a dense burst of tiny crisscrossing slash marks emblem, silver-white, ${STATUS_ICON_STYLE}`);
+icon('status_afterImage', `a hooded figure emblem with a translucent ghostly copy offset behind, ${STATUS_ICON_STYLE}`);
+icon('status_envenom', `a dagger blade coated in dripping luminous green venom emblem, ${STATUS_ICON_STYLE}`);
+icon('status_intangible', `a translucent spectral wisp emblem, edges dissolving into pale smoke, ${STATUS_ICON_STYLE}`);
+icon('status_wraithForm', `a dark wraith visage emblem with hollow glowing eyes and trailing shadow, ${STATUS_ICON_STYLE}`);
 
 // --- Relic icons: batch 2 (StS-inspired additions) ---
 

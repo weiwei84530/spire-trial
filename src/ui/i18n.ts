@@ -59,6 +59,11 @@ const STR = {
   resume: { en: 'Continue adventure', zh: '繼續冒險' },
   abandon: { en: 'Restart', zh: '重新開始' },
   start: { en: 'Begin the climb', zh: '開始冒險' },
+  // Character select
+  chooseCharacter: { en: 'Choose your character', zh: '選擇你的角色' },
+  embark: { en: 'Embark', zh: '出發' },
+  back: { en: 'Back', zh: '返回' },
+  charMaxHp: { en: 'Max HP {0}', zh: '生命上限 {0}' },
   subtitle: { en: 'Deck-building · Three-act dungeon · One life', zh: '卡牌構築・三幕地城・一次生命' },
   // Top bar
   hp: { en: 'HP', zh: '生命' },
@@ -214,6 +219,18 @@ const STATUS: Record<string, Record<Locale, string>> = {
   energized: { en: 'Energized', zh: '蓄能' },
   barricade: { en: 'Barricade', zh: '屏障' },
   noxious: { en: 'Noxious Fumes', zh: '毒霧' },
+  nextTurnBlock: { en: 'Reinforced', zh: '蓄勢格擋' },
+  nextTurnEnergy: { en: 'Surge', zh: '湧能' },
+  nextTurnDraw: { en: 'Foresight', zh: '預備抽牌' },
+  blur: { en: 'Blur', zh: '殘影' },
+  accuracy: { en: 'Accuracy', zh: '精準' },
+  infiniteBlades: { en: 'Infinite Blades', zh: '無盡刀刃' },
+  toolsOfTrade: { en: 'Tools of the Trade', zh: '慣竊工具' },
+  thousandCuts: { en: 'Thousand Cuts', zh: '千刀萬剮' },
+  afterImage: { en: 'After Image', zh: '殘像' },
+  envenom: { en: 'Envenom', zh: '淬毒' },
+  intangible: { en: 'Intangible', zh: '虛無' },
+  wraithForm: { en: 'Wraith Form', zh: '幽魂形態' },
 };
 
 export function statusName(id: string): string {
@@ -234,6 +251,30 @@ const STATUS_DESC: Record<string, Record<Locale, string>> = {
   energized: { en: 'Gains N extra energy each turn.', zh: '每回合額外獲得 N 點能量。' },
   barricade: { en: 'Block is not removed at the start of the turn.', zh: '格擋不再於回合開始時消失。' },
   noxious: { en: 'Applies N Poison to all enemies each turn.', zh: '每回合對所有敵人施加 N 層中毒。' },
+  nextTurnBlock: { en: 'Gains N Block at the start of the next turn.', zh: '下回合開始時獲得 N 點格擋。' },
+  nextTurnEnergy: { en: 'Gains N extra Energy next turn.', zh: '下回合獲得 N 點額外能量。' },
+  nextTurnDraw: { en: 'Draws N additional cards next turn.', zh: '下回合額外抽 N 張牌。' },
+  blur: {
+    en: 'Block is not removed at the start of the next N turns.',
+    zh: '接下來 N 回合開始時，格擋不會消失。',
+  },
+  accuracy: { en: 'Shivs deal N additional damage.', zh: '小刀造成的傷害 +N。' },
+  infiniteBlades: { en: 'Adds N Shivs to your hand at the start of each turn.', zh: '每回合開始時，將 N 張小刀加入手牌。' },
+  toolsOfTrade: {
+    en: 'At the start of each turn, draw N cards, then discard N cards at random.',
+    zh: '每回合開始時抽 N 張牌，然後隨機棄 N 張。',
+  },
+  thousandCuts: {
+    en: 'Whenever you play a card, deal N damage to all enemies.',
+    zh: '每打出一張牌，對所有敵人造成 N 點傷害。',
+  },
+  afterImage: { en: 'Whenever you play a card, gain N Block.', zh: '每打出一張牌，獲得 N 點格擋。' },
+  envenom: {
+    en: 'Whenever an attack deals unblocked damage, apply N Poison.',
+    zh: '攻擊造成生命傷害時，施加 N 層中毒。',
+  },
+  intangible: { en: 'Damage taken is reduced to 1 for N turns.', zh: '接下來 N 回合，受到的傷害至多為 1。' },
+  wraithForm: { en: 'Loses N Dexterity at the end of each turn.', zh: '每回合結束時失去 N 點敏捷。' },
 };
 
 export function statusDesc(id: string, stacks: number): string {
@@ -301,6 +342,40 @@ const CARD_ZH: Record<string, string> = {
   whirlwind: '旋風斬',
   metallicize: '金屬化',
   dramatic_entrance: '華麗登場',
+  neutralize: '無力化',
+  survivor: '生存者',
+  crippling_cloud: '致殘毒雲',
+  twin_fangs: '雙蛇之牙',
+  bane: '禍根',
+  dagger_spray: '飛刀齊射',
+  dagger_throw: '飛刀投擲',
+  deflect: '偏斜',
+  dodge_and_roll: '翻滾閃避',
+  flying_knee: '飛膝擊',
+  outmaneuver: '聲東擊西',
+  piercing_wail: '刺耳哀嚎',
+  slice: '切割',
+  acrobatics: '雜技身法',
+  prepared: '蓄勢待發',
+  accuracy: '精準',
+  all_out_attack: '全力進攻',
+  backstab: '背刺',
+  blur: '殘影',
+  bouncing_flask: '彈跳毒瓶',
+  catalyst: '催化劑',
+  finisher: '終結技',
+  flechettes: '鏢雨',
+  infinite_blades: '無盡刀刃',
+  leg_sweep: '掃堂腿',
+  predator: '掠食者',
+  riddle_with_holes: '千瘡百孔',
+  thousand_cuts: '千刀萬剮',
+  after_image: '殘像',
+  envenom: '淬毒',
+  grand_finale: '終幕',
+  tools_of_the_trade: '慣竊工具',
+  unload: '傾囊而出',
+  wraith_form: '幽魂形態',
 };
 
 /** Localized display name for a resolved card def (keeps the upgrade "+"). */
@@ -360,6 +435,33 @@ const ENEMY_ZH: Record<string, string> = {
   boss_maw: '吞噬巨口',
 };
 
+// --- Characters (engine names are canonical English; zh + blurbs overlaid) ---
+
+const CHARACTER_L10N: Record<string, { name: Record<Locale, string>; desc: Record<Locale, string> }> = {
+  warrior: {
+    name: { en: 'The Wanderer', zh: '流浪劍士' },
+    desc: {
+      en: 'A sword-and-board fighter who crushes foes with Strength and Block.',
+      zh: '攻守兼備的劍盾戰士，以力量與格擋正面壓制敵人。',
+    },
+  },
+  assassin: {
+    name: { en: 'The Night Blade', zh: '夜刃刺客' },
+    desc: {
+      en: 'A deadly assassin who wins through poison, daggers and swift footwork.',
+      zh: '致命的女刺客，靠毒素、飛刀與靈巧步法置敵於死地。',
+    },
+  },
+};
+
+export function characterName(id: string, engineName: string): string {
+  return CHARACTER_L10N[id]?.name[current] ?? engineName;
+}
+
+export function characterDesc(id: string): string {
+  return CHARACTER_L10N[id]?.desc[current] ?? '';
+}
+
 /** Localized enemy display name; falls back to the engine (English) name. */
 export function enemyName(defId: string, engineName: string): string {
   if (current === 'zh') return ENEMY_ZH[defId] ?? engineName;
@@ -370,6 +472,7 @@ export function enemyName(defId: string, engineName: string): string {
 
 const RELIC_ZH: Record<string, string> = {
   burning_blood: '燃燒之血',
+  snake_ring: '蛇之戒',
   vajra: '金剛杵',
   anchor: '船錨',
   bag_of_preparation: '準備背包',
@@ -410,6 +513,7 @@ export function potionName(id: string, engineName: string): string {
 
 const RELIC_DESC_EN: Record<string, string> = {
   burning_blood: 'After each combat victory, heal 6 HP.',
+  snake_ring: 'At the start of each combat, draw 2 additional cards.',
   vajra: 'At the start of each combat, gain 1 Strength.',
   anchor: 'At the start of each combat, gain 10 Block.',
   bag_of_preparation: 'At the start of each combat, draw 2 additional cards.',

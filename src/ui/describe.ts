@@ -70,16 +70,25 @@ function shownBlock(effect: Effect & { kind: 'block' }, ctx?: CardTextCtx): stri
 function effectTextZh(effect: Effect, ctx?: CardTextCtx): string {
   switch (effect.kind) {
     case 'damage': {
-      const times = effect.times === 'x' ? ' X 次' : effect.times && effect.times > 1 ? ` ${effect.times} 次` : '';
       const scope = effect.target === 'allEnemies' ? '對所有敵人' : '';
-      return `${scope}造成 ${shownDamage(effect, ctx)} 點傷害${times}`;
+      const dmg = shownDamage(effect, ctx);
+      if (effect.times === 'attacksThisTurn') {
+        return `本回合每打出過一張攻擊牌，${scope}造成 ${dmg} 點傷害`;
+      }
+      if (effect.times === 'skillsInHand') {
+        return `手牌中每有一張技能牌，${scope}造成 ${dmg} 點傷害`;
+      }
+      const times = effect.times === 'x' ? ' X 次' : typeof effect.times === 'number' && effect.times > 1 ? ` ${effect.times} 次` : '';
+      const cond = effect.onlyIfTargetPoisoned ? '若目標中毒，再' : '';
+      return `${cond}${scope}造成 ${dmg} 點傷害${times}`;
     }
     case 'block':
       return `獲得 ${shownBlock(effect, ctx)} 點格擋`;
     case 'applyStatus': {
       const name = kw(effect.status, effect.stacks);
       if (effect.target === 'self') return `獲得 ${effect.stacks} 層${name}`;
-      const scope = effect.target === 'allEnemies' ? '對所有敵人' : '';
+      const scope =
+        effect.target === 'allEnemies' ? '對所有敵人' : effect.target === 'randomEnemy' ? '對隨機敵人' : '';
       return `${scope}施加 ${effect.stacks} 層${name}`;
     }
     case 'draw':
@@ -98,22 +107,41 @@ function effectTextZh(effect: Effect, ctx?: CardTextCtx): string {
       const count = effect.count ?? 1;
       return `將 ${count} 張 ${getCardDef(effect.card).name} 加入${PILE_NAMES[effect.destination].zh}`;
     }
+    case 'discardRandom':
+      return `隨機棄掉 ${effect.count} 張手牌`;
+    case 'discardNonAttacks':
+      return '棄掉所有非攻擊手牌';
+    case 'multiplyStatus':
+      return `使目標的${kw(effect.status, 0)}層數變為 ${effect.factor} 倍`;
   }
 }
 
 function effectTextEn(effect: Effect, ctx?: CardTextCtx): string {
   switch (effect.kind) {
     case 'damage': {
-      const times = effect.times === 'x' ? ' X times' : effect.times && effect.times > 1 ? ` ${effect.times} times` : '';
       const scope = effect.target === 'allEnemies' ? ' to ALL enemies' : '';
-      return `Deal ${shownDamage(effect, ctx)} damage${scope}${times}`;
+      const dmg = shownDamage(effect, ctx);
+      if (effect.times === 'attacksThisTurn') {
+        return `Deal ${dmg} damage${scope} for each Attack played this turn`;
+      }
+      if (effect.times === 'skillsInHand') {
+        return `Deal ${dmg} damage${scope} for each Skill in your hand`;
+      }
+      const times = effect.times === 'x' ? ' X times' : typeof effect.times === 'number' && effect.times > 1 ? ` ${effect.times} times` : '';
+      const cond = effect.onlyIfTargetPoisoned ? 'If the target is Poisoned, deal' : 'Deal';
+      return `${cond} ${dmg} damage${scope}${times}`;
     }
     case 'block':
       return `Gain ${shownBlock(effect, ctx)} Block`;
     case 'applyStatus': {
       const name = kw(effect.status, effect.stacks);
       if (effect.target === 'self') return `Gain ${effect.stacks} ${name}`;
-      const scope = effect.target === 'allEnemies' ? ' to ALL enemies' : '';
+      const scope =
+        effect.target === 'allEnemies'
+          ? ' to ALL enemies'
+          : effect.target === 'randomEnemy'
+            ? ' to a random enemy'
+            : '';
       return `Apply ${effect.stacks} ${name}${scope}`;
     }
     case 'draw':
@@ -132,6 +160,14 @@ function effectTextEn(effect: Effect, ctx?: CardTextCtx): string {
       const count = effect.count ?? 1;
       return `Add ${count} ${getCardDef(effect.card).name} to your ${PILE_NAMES[effect.destination].en}`;
     }
+    case 'discardRandom':
+      return `Discard ${effect.count} random ${effect.count === 1 ? 'card' : 'cards'}`;
+    case 'discardNonAttacks':
+      return 'Discard all non-Attack cards in your hand';
+    case 'multiplyStatus':
+      return effect.factor === 2
+        ? `Double the target's ${kw(effect.status, 0)}`
+        : `Multiply the target's ${kw(effect.status, 0)} by ${effect.factor}`;
   }
 }
 
@@ -142,6 +178,9 @@ export function cardText(def: CardDef, ctx?: CardTextCtx): string {
   const parts: string[] = [];
   if (def.unplayable) parts.push(zh ? '無法打出' : 'Unplayable');
   if (def.innate) parts.push(zh ? '固有' : 'Innate');
+  if (def.playCondition === 'drawPileEmpty') {
+    parts.push(zh ? '只能在抽牌堆為空時打出' : 'Can only be played if your draw pile is empty');
+  }
   parts.push(...def.effects.map((e) => (zh ? effectTextZh(e, ctx) : effectTextEn(e, ctx))));
   if (def.selfDamageAtTurnEnd) {
     parts.push(

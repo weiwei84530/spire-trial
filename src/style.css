@@ -714,6 +714,49 @@ body[data-phase='shop'] {
 .game-subtitle { letter-spacing: 6px; font-size: 17px; margin-bottom: 16px; text-shadow: 0 1px 4px #000; }
 .save-info { font-size: 15px; }
 
+/* --- Character select (title screen) --- */
+.char-select-title {
+  font-family: 'Cinzel', serif;
+  letter-spacing: 4px;
+  color: #ffe9ad;
+  text-shadow: 0 0 18px rgba(245, 196, 81, 0.3), 0 2px 6px #000;
+}
+.char-select-row {
+  display: flex;
+  justify-content: center;
+  gap: 22px;
+  margin: 6px 0 4px;
+}
+.char-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(320px, 42vw);
+  padding: 18px 18px 16px;
+  background: rgba(22, 24, 31, 0.9);
+  border: 2px solid rgba(120, 126, 145, 0.35);
+  border-radius: 12px;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.char-choice:hover { transform: translateY(-3px); border-color: rgba(232, 185, 59, 0.55); }
+.char-choice.selected {
+  border-color: var(--energy);
+  box-shadow: 0 0 22px rgba(232, 185, 59, 0.35), inset 0 0 30px rgba(232, 185, 59, 0.06);
+}
+.char-portrait {
+  height: min(300px, 34vh);
+  object-fit: contain;
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.7));
+}
+.char-choice.selected .char-portrait { filter: drop-shadow(0 0 18px rgba(232, 185, 59, 0.35)) drop-shadow(0 10px 16px rgba(0, 0, 0, 0.7)); }
+.char-name { font-family: 'Cinzel', serif; font-weight: 700; font-size: 21px; color: #ffe9ad; letter-spacing: 2px; }
+.char-desc { font-size: 14px; color: var(--muted); line-height: 1.6; min-height: 44px; }
+.char-stats { font-size: 15px; font-weight: 700; }
+.char-relic { font-size: 13px; color: var(--muted); line-height: 1.5; display: flex; align-items: center; gap: 6px; }
+
 .intent {
   font-size: 21px;
   font-weight: 700;

@@ -64,6 +64,8 @@ export class Battle {
   private readonly hpScale: number;
   /** Enemies whose `enemyDeath` event has been emitted (dedupes multi-cause deaths). */
   private readonly deathEmitted = new Set<EnemyState>();
+  /** Attack cards played this turn, including the one resolving (Finisher). */
+  private attacksThisTurn = 0;
   /** Testing cheats, shared by reference with the owning Run. */
   cheats: { oneHitKill?: boolean; infiniteHp?: boolean; infiniteEnergy?: boolean } = {};
 
@@ -113,7 +115,8 @@ export class Battle {
     const preview: IntentPreview = { kind: move.intent };
     for (const effect of move.effects) {
       if (effect.kind === 'damage' && preview.damage === undefined) {
-        const times = effect.times === 'x' ? 1 : (effect.times ?? 1);
+        // Enemy moves only ever use fixed hit counts.
+        const times = typeof effect.times === 'number' ? effect.times : 1;
         preview.damage = calcAttackDamage(effect.amount, enemy, this.state.player);
         preview.hits = times;
       } else if (effect.kind === 'block') {
@@ -140,6 +143,7 @@ export class Battle {
     if (!card) return false;
     const def = resolveCard(card);
     if (def.unplayable) return false;
+    if (def.playCondition === 'drawPileEmpty' && this.state.player.drawPile.length > 0) return false;
     if (!this.cheats.infiniteEnergy && def.cost !== 'x' && def.cost > this.state.player.energy)
       return false;
     if (def.target === 'enemy') {
@@ -168,8 +172,9 @@ export class Battle {
     this.emit({ type: 'playerActionStart', cardDefId: def.id, cardType: def.type, target: targetIndex });
     if (spent !== 0) this.emit({ type: 'energy', delta: -spent, total: player.energy });
 
+    if (def.type === 'attack') this.attacksThisTurn++;
     const target = def.target === 'enemy' ? this.state.enemies[targetIndex!]! : undefined;
-    this.executeEffects(def.effects, player, target, x);
+    this.executeEffects(def.effects, player, target, x, def.id);
 
     // Powers leave the deck for the rest of the battle; their effect persists as statuses.
     if (def.exhaust || def.type === 'power') {
@@ -177,7 +182,27 @@ export class Battle {
     } else {
       player.discardPile.push(card);
     }
+    this.onCardPlayedTriggers();
     this.checkBattleEnd();
+  }
+
+  /** Per-card-played powers: Thousand Cuts (damage all) and After Image (block). */
+  private onCardPlayedTriggers(): void {
+    const { player } = this.state;
+    const cuts = getStatus(player, 'thousandCuts');
+    if (cuts > 0) {
+      for (const enemy of this.aliveEnemies()) {
+        // Flat power damage: unmodified by strength/weak/vulnerable.
+        this.applyDamage(player, enemy, cuts, 'attack');
+      }
+      this.log(`Thousand cuts hits all enemies for ${cuts}`);
+    }
+    const image = getStatus(player, 'afterImage');
+    if (image > 0) {
+      player.block += image;
+      this.emit({ type: 'blockGain', target: 'player', amount: image, blockAfter: player.block });
+      this.log(`After image grants ${image} block`);
+    }
   }
 
   endTurn(): void {
@@ -218,6 +243,19 @@ export class Battle {
       });
       this.log(`Player gains ${playerRitual} strength from ritual`);
     }
+    // Wraith Form's price: dexterity bleeds away at the end of every turn.
+    const wraith = getStatus(player, 'wraithForm');
+    if (wraith > 0) {
+      addStatus(player, 'dexterity', -wraith);
+      this.emit({
+        type: 'statusChange',
+        target: 'player',
+        status: 'dexterity',
+        delta: -wraith,
+        total: getStatus(player, 'dexterity'),
+      });
+      this.log(`Player loses ${wraith} dexterity from wraith form`);
+    }
 
     // Snapshot: enemies spawned this turn (death triggers) act from the next turn on.
     for (const enemy of [...this.state.enemies]) {
@@ -232,16 +270,44 @@ export class Battle {
 
   private startPlayerTurn(): void {
     const { player } = this.state;
+    this.attacksThisTurn = 0;
     this.emit({ type: 'turnStart', turn: this.state.turn });
-    // Barricade keeps block between turns.
-    if (getStatus(player, 'barricade') === 0) player.block = 0;
+    // Barricade (permanent) or Blur (N turns) keeps block between turns.
+    if (getStatus(player, 'barricade') === 0 && getStatus(player, 'blur') === 0) {
+      player.block = 0;
+    } else if (getStatus(player, 'blur') > 0) {
+      addStatus(player, 'blur', -1);
+      this.emit({
+        type: 'statusChange',
+        target: 'player',
+        status: 'blur',
+        delta: -1,
+        total: getStatus(player, 'blur'),
+      });
+    }
     const poison = this.tickPoisonWithEvents(player);
     if (poison > 0) this.log(`Player takes ${poison} poison damage`);
     if (this.checkBattleEnd()) return;
     const energyBefore = player.energy;
-    player.energy = player.maxEnergy + getStatus(player, 'energized');
+    player.energy = player.maxEnergy + getStatus(player, 'energized') + getStatus(player, 'nextTurnEnergy');
+    this.consumeStatus(player, 'nextTurnEnergy');
     if (player.energy !== energyBefore) {
       this.emit({ type: 'energy', delta: player.energy - energyBefore, total: player.energy });
+    }
+    // One-shot block promised last turn (Dodge and Roll): flat, no dexterity.
+    const savedBlock = getStatus(player, 'nextTurnBlock');
+    if (savedBlock > 0) {
+      player.block += savedBlock;
+      this.emit({ type: 'blockGain', target: 'player', amount: savedBlock, blockAfter: player.block });
+      this.consumeStatus(player, 'nextTurnBlock');
+    }
+    // Infinite Blades: fresh Shivs in hand before the draw.
+    const blades = getStatus(player, 'infiniteBlades');
+    if (blades > 0) {
+      this.executeEffects(
+        [{ kind: 'addCard', card: 'shiv', count: blades, destination: 'hand' }],
+        player,
+      );
     }
     // Noxious fumes: poison every living enemy at the start of each player turn.
     const noxious = getStatus(player, 'noxious');
@@ -258,7 +324,36 @@ export class Battle {
       }
       this.log(`Noxious fumes poison all enemies (${noxious})`);
     }
-    this.drawCards(HAND_SIZE);
+    this.drawCards(HAND_SIZE + getStatus(player, 'nextTurnDraw'));
+    this.consumeStatus(player, 'nextTurnDraw');
+    // Tools of the Trade: extra churn after the regular draw.
+    const tools = getStatus(player, 'toolsOfTrade');
+    if (tools > 0) {
+      this.drawCards(tools);
+      this.discardRandom(tools);
+    }
+  }
+
+  /** Zeroes a one-shot status, emitting the change if it was set. */
+  private consumeStatus(actor: PlayerState | EnemyState, id: StatusId): void {
+    const stacks = getStatus(actor, id);
+    if (stacks === 0) return;
+    addStatus(actor, id, -stacks);
+    this.emit({ type: 'statusChange', target: this.refOf(actor), status: id, delta: -stacks, total: 0 });
+  }
+
+  /** Discards up to `count` random cards from the player's hand. */
+  private discardRandom(count: number): void {
+    const { player } = this.state;
+    let discarded = 0;
+    for (let i = 0; i < count && player.hand.length > 0; i++) {
+      const idx = this.rng.int(0, player.hand.length - 1);
+      const [card] = player.hand.splice(idx, 1);
+      player.discardPile.push(card!);
+      this.log(`Player discards ${resolveCard(card!).name}`);
+      discarded++;
+    }
+    if (discarded > 0) this.emit({ type: 'discardHand', count: discarded });
   }
 
   /** Poison tick that emits the block-ignoring damage plus the stack decay. */
@@ -341,6 +436,7 @@ export class Battle {
     source: PlayerState | EnemyState,
     chosenEnemy?: EnemyState,
     x = 0,
+    cardDefId?: string,
   ): void {
     const isPlayer = source === this.state.player;
 
@@ -354,13 +450,35 @@ export class Battle {
               ? this.aliveEnemies()
               : [chosenEnemy!]
             : [this.state.player];
-          const times = effect.times === 'x' ? x : (effect.times ?? 1);
+          const times =
+            effect.times === 'x'
+              ? x
+              : effect.times === 'attacksThisTurn'
+                ? this.attacksThisTurn
+                : effect.times === 'skillsInHand'
+                  ? this.state.player.hand.filter((c) => resolveCard(c).type === 'skill').length
+                  : (effect.times ?? 1);
+          // Accuracy boosts Shivs at the base-damage level (before strength/weak).
+          const accuracy = isPlayer && cardDefId === 'shiv' ? getStatus(source, 'accuracy') : 0;
           for (const target of targets) {
+            if (effect.onlyIfTargetPoisoned && getStatus(target, 'poison') <= 0) continue;
             for (let i = 0; i < times; i++) {
               if (source.hp <= 0) return;
-              const dmg = calcAttackDamage(effect.amount, source, target);
+              const dmg = calcAttackDamage(effect.amount + accuracy, source, target);
               const hpLoss = this.applyDamage(source, target, dmg, 'attack');
               this.log(`${this.nameOf(source)} hits ${this.nameOf(target)} for ${dmg} (${hpLoss} HP)`);
+              // Envenom: unblocked player attack damage poisons the enemy.
+              const envenom = isPlayer ? getStatus(source, 'envenom') : 0;
+              if (envenom > 0 && hpLoss > 0 && target !== this.state.player && target.hp > 0) {
+                addStatus(target, 'poison', envenom);
+                this.emit({
+                  type: 'statusChange',
+                  target: this.refOf(target),
+                  status: 'poison',
+                  delta: envenom,
+                  total: getStatus(target, 'poison'),
+                });
+              }
               const thorns = getStatus(target, 'thorns');
               if (thorns > 0 && target.hp > 0) {
                 const thornLoss = this.applyDamage(target, source, thorns, 'thorns');
@@ -383,6 +501,9 @@ export class Battle {
             targets = [source];
           } else if (effect.target === 'allEnemies') {
             targets = isPlayer ? this.aliveEnemies() : [this.state.player];
+          } else if (effect.target === 'randomEnemy') {
+            const alive = this.aliveEnemies();
+            targets = isPlayer && alive.length > 0 ? [this.rng.pick(alive)] : isPlayer ? [] : [this.state.player];
           } else {
             targets = isPlayer ? [chosenEnemy!] : [this.state.player];
           }
@@ -467,6 +588,47 @@ export class Battle {
             this.log(`${resolveCard(created).name} added to ${effect.destination}`);
           }
           this.emit({ type: 'addCard', cardDefId: effect.card, destination: effect.destination, count });
+          break;
+        }
+        case 'discardRandom':
+          if (isPlayer) this.discardRandom(effect.count);
+          break;
+        case 'discardNonAttacks': {
+          if (!isPlayer) break;
+          const { player } = this.state;
+          const keep: CardInstance[] = [];
+          let discarded = 0;
+          for (const card of player.hand) {
+            if (resolveCard(card).type === 'attack') {
+              keep.push(card);
+            } else {
+              player.discardPile.push(card);
+              discarded++;
+            }
+          }
+          player.hand = keep;
+          if (discarded > 0) {
+            this.emit({ type: 'discardHand', count: discarded });
+            this.log(`Player discards ${discarded} non-attack cards`);
+          }
+          break;
+        }
+        case 'multiplyStatus': {
+          const target = isPlayer ? chosenEnemy : this.state.player;
+          if (!target) break;
+          const current = getStatus(target, effect.status);
+          const added = current * (effect.factor - 1);
+          if (added > 0) {
+            addStatus(target, effect.status, added);
+            this.emit({
+              type: 'statusChange',
+              target: this.refOf(target),
+              status: effect.status,
+              delta: added,
+              total: getStatus(target, effect.status),
+            });
+            this.log(`${this.nameOf(target)}'s ${effect.status} multiplied to ${current + added}`);
+          }
           break;
         }
       }
@@ -586,6 +748,8 @@ export class Battle {
     if (this.cheats.oneHitKill && cause === 'attack' && source === this.state.player) {
       amount = target.block + target.hp;
     }
+    // Intangible caps any block-respecting damage at 1 (poison bypasses this funnel).
+    if (getStatus(target, 'intangible') > 0) amount = Math.min(amount, 1);
     if (this.cheats.infiniteHp && target === this.state.player) amount = 0;
     const blocked = Math.min(target.block, amount);
     const hpLoss = dealDamage(target, amount);

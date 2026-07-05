@@ -1,7 +1,7 @@
 import type { Actor, StatusId } from './types';
 
 /** Statuses that count down by 1 at the end of their owner's turn. */
-const DECAYING: readonly StatusId[] = ['vulnerable', 'weak', 'frail'];
+const DECAYING: readonly StatusId[] = ['vulnerable', 'weak', 'frail', 'intangible'];
 
 /** Statuses where negative stacks are meaningful (e.g. strength loss from Disarm-like cards). */
 const SIGNED: readonly StatusId[] = ['strength', 'dexterity'];

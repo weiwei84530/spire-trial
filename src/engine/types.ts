@@ -12,18 +12,39 @@ export type StatusId =
   | 'thorns'
   | 'energized'
   | 'barricade'
-  | 'noxious';
+  | 'noxious'
+  // Silent-class mechanics (one-shot "next turn" buffs consumed at turn start):
+  | 'nextTurnBlock'
+  | 'nextTurnEnergy'
+  | 'nextTurnDraw'
+  | 'blur' // block survives the next N turn starts
+  | 'accuracy' // Shivs deal +N damage
+  | 'infiniteBlades' // turn start: add N Shivs to hand
+  | 'toolsOfTrade' // turn start: draw N, then discard N at random
+  | 'thousandCuts' // whenever a card is played: N damage to all enemies
+  | 'afterImage' // whenever a card is played: gain N block
+  | 'envenom' // unblocked attack damage applies N poison
+  | 'intangible' // attack/thorns/burn damage taken is capped at 1
+  | 'wraithForm'; // end of turn: lose N dexterity
 
 /** Target selector for effects. 'enemy' means the card's chosen target. */
-export type EffectTarget = 'enemy' | 'allEnemies' | 'self';
+export type EffectTarget = 'enemy' | 'allEnemies' | 'randomEnemy' | 'self';
 
 /** Where a card created mid-battle is put. */
 export type PileId = 'hand' | 'drawPile' | 'discardPile';
 
 /** Atomic effects. Cards and enemy moves are compositions of these.
- * `times: 'x'` on damage repeats once per energy spent on an X-cost card. */
+ * `times: 'x'` repeats once per energy spent on an X-cost card;
+ * 'attacksThisTurn' / 'skillsInHand' repeat per matching card (Finisher, Flechettes). */
 export type Effect =
-  | { kind: 'damage'; amount: number; times?: number | 'x'; target?: 'enemy' | 'allEnemies' }
+  | {
+      kind: 'damage';
+      amount: number;
+      times?: number | 'x' | 'attacksThisTurn' | 'skillsInHand';
+      target?: 'enemy' | 'allEnemies';
+      /** Skipped entirely unless the (chosen) target is poisoned (Bane). */
+      onlyIfTargetPoisoned?: boolean;
+    }
   | { kind: 'block'; amount: number }
   | { kind: 'applyStatus'; status: StatusId; stacks: number; target: EffectTarget }
   | { kind: 'draw'; count: number }
@@ -33,9 +54,17 @@ export type Effect =
   /** Heals a percentage of the source's max HP (e.g. Blood Potion). */
   | { kind: 'healPercent'; percent: number }
   | { kind: 'doubleBlock' }
-  | { kind: 'addCard'; card: string; count?: number; destination: PileId };
+  | { kind: 'addCard'; card: string; count?: number; destination: PileId }
+  /** Discards N random cards from the player's hand (Silent discard cards). */
+  | { kind: 'discardRandom'; count: number }
+  /** Discards every non-attack card from the player's hand (Unload). */
+  | { kind: 'discardNonAttacks' }
+  /** Multiplies a status on the chosen enemy (Catalyst: poison x2/x3). */
+  | { kind: 'multiplyStatus'; status: StatusId; factor: number };
 
 export type CardType = 'attack' | 'skill' | 'power' | 'status' | 'curse';
+/** Playable characters. Card pools and starting kits key off this. */
+export type CharacterId = 'warrior' | 'assassin';
 export type CardRarity = 'starter' | 'common' | 'uncommon' | 'rare' | 'special';
 
 /** What the card needs selected when played. 'none' includes AoE and self-only cards. */
@@ -58,8 +87,12 @@ export interface CardDef {
   innate?: boolean;
   /** If the card is in hand when the turn ends, the player takes this much damage (e.g. Burn). */
   selfDamageAtTurnEnd?: number;
+  /** Card is only playable while this run-time condition holds (Grand Finale). */
+  playCondition?: 'drawPileEmpty';
   /** Overrides applied when the card is upgraded. Name gets a "+" suffix automatically. */
-  upgrade?: Partial<Pick<CardDef, 'cost' | 'effects' | 'exhaust' | 'selfDamageAtTurnEnd'>>;
+  upgrade?: Partial<Pick<CardDef, 'cost' | 'effects' | 'exhaust' | 'selfDamageAtTurnEnd' | 'innate'>>;
+  /** Restricts the card to one character's pool; absent = neutral (everyone). */
+  character?: CharacterId;
 }
 
 /** A concrete card in a deck (two Strikes are two instances of the same def). */

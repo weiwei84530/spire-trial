@@ -3,13 +3,14 @@
  * battle engine — the UI only calls the public methods and renders state.
  */
 import { Battle } from './battle';
-import { CARDS, ensureInstanceIdAbove, makeCard, makeStarterDeck } from './cards';
+import { CARDS, cardPool, ensureInstanceIdAbove, makeCard, makeStarterDeck } from './cards';
+import { CHARACTERS, getCharacterDef } from './characters';
 import { EVENTS, type EventDef } from './events';
 import { generateMap, getNode, type GameMap, type MapNode, type NodeKind } from './map';
 import { getPotionDef, POTION_IDS } from './potions';
 import { RELICS, getRelicDef } from './relics';
 import { Rng } from './rng';
-import type { CardInstance, CardRarity } from './types';
+import type { CardInstance, CardRarity, CharacterId } from './types';
 
 export type RunPhase =
   | 'map'
@@ -58,6 +59,8 @@ export interface RunSave {
   potionChance?: number;
   /** Event ids already encountered (anti-repeat); absent in older saves. */
   seenEvents?: string[];
+  /** Playable character; absent in older saves (defaults to warrior). */
+  character?: CharacterId;
 }
 
 /** What actually happened when an event choice resolved (for the result screen). */
@@ -200,13 +203,14 @@ export interface ShopStock {
 
 export class Run {
   readonly rng: Rng;
+  readonly character: CharacterId;
   map: GameMap;
   act = 1;
   readonly deck: CardInstance[];
   hp: number;
   maxHp: number;
   gold = 99;
-  readonly relics: string[] = ['burning_blood'];
+  readonly relics: string[];
   readonly potions: string[] = [];
   phase: RunPhase = 'map';
   currentNodeId: string | null = null;
@@ -242,9 +246,10 @@ export class Run {
     return this.cheats.infiniteGold || this.gold >= price;
   }
 
-  constructor(seed: number, save?: RunSave) {
+  constructor(seed: number, save?: RunSave, character: CharacterId = 'warrior') {
     if (save) {
       this.rng = new Rng(save.rngState);
+      this.character = save.character ?? 'warrior';
       this.act = save.act ?? 1;
       this.map = save.map;
       this.deck = save.deck;
@@ -262,10 +267,13 @@ export class Run {
       return;
     }
     this.rng = new Rng(seed);
+    this.character = character;
+    const charDef = getCharacterDef(character);
     this.map = generateMap(this.rng);
-    this.deck = makeStarterDeck();
-    this.maxHp = 80;
-    this.hp = 80;
+    this.deck = makeStarterDeck(character);
+    this.relics = [charDef.startingRelic];
+    this.maxHp = charDef.maxHp;
+    this.hp = charDef.maxHp;
   }
 
   /** Snapshot for persistence. Only legal between nodes (map phase). */
@@ -287,6 +295,7 @@ export class Run {
       stats: { ...this.stats },
       potionChance: this.potionChance,
       seenEvents: [...this.seenEvents],
+      character: this.character,
     };
   }
 
@@ -491,10 +500,7 @@ export class Run {
 
   /** Boss card rewards are all-rare, matching the original. */
   private rollCardRewards(rareOnly = false): string[] {
-    const byRarity = (rarity: CardRarity) =>
-      Object.values(CARDS)
-        .filter((c) => c.rarity === rarity && !c.unplayable)
-        .map((c) => c.id);
+    const byRarity = (rarity: CardRarity) => cardPool(this.character, rarity);
     const totalWeight = RARITY_WEIGHTS.reduce((s, [, w]) => s + w, 0);
     const picks: string[] = [];
     let guard = 50;
@@ -517,14 +523,22 @@ export class Run {
     return picks;
   }
 
+  /** Droppable relics: unowned, excluding every character's starting relic. */
+  private relicDropPool(): string[] {
+    const starting = Object.values(CHARACTERS).map((c) => c.startingRelic);
+    return Object.keys(RELICS).filter(
+      (id) => !this.relics.includes(id) && !starting.includes(id),
+    );
+  }
+
   private randomUnownedRelic(): string | null {
-    const pool = Object.keys(RELICS).filter((id) => !this.relics.includes(id));
+    const pool = this.relicDropPool();
     return pool.length > 0 ? this.rng.pick(pool) : null;
   }
 
   /** Up to n distinct unowned relics (boss pick-one-of-three). */
   private randomUnownedRelics(n: number): string[] {
-    const pool = Object.keys(RELICS).filter((id) => !this.relics.includes(id));
+    const pool = this.relicDropPool();
     const picks: string[] = [];
     while (picks.length < n && pool.length > 0) {
       const idx = this.rng.int(0, pool.length - 1);

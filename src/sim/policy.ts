@@ -18,6 +18,18 @@ const STATUS_VALUE: Record<string, number> = {
   thorns: 3,
   ritual: 9,
   energized: 9,
+  nextTurnBlock: 1,
+  nextTurnEnergy: 3,
+  nextTurnDraw: 2,
+  blur: 3,
+  accuracy: 5,
+  infiniteBlades: 8,
+  toolsOfTrade: 4,
+  thousandCuts: 9,
+  afterImage: 9,
+  envenom: 8,
+  intangible: 10,
+  wraithForm: 0,
 };
 
 /** Total damage the enemies intend to deal this turn. */
@@ -54,7 +66,9 @@ function scoreCard(battle: Battle, handIndex: number, target: number): number {
   for (const effect of def.effects) {
     switch (effect.kind) {
       case 'damage': {
-        const times = effect.times === 'x' ? x : (effect.times ?? 1);
+        const times =
+          effect.times === 'x' ? x : typeof effect.times === 'number' ? effect.times : 1;
+        if (effect.onlyIfTargetPoisoned && enemy && !(enemy.statuses['poison'] ?? 0)) break;
         const targets = effect.target === 'allEnemies' ? battle.aliveEnemies() : enemy ? [enemy] : [];
         for (const t of targets) {
           const dmg = calcAttackDamage(effect.amount, player, t) * times;
@@ -93,6 +107,14 @@ function scoreCard(battle: Battle, handIndex: number, target: number): number {
         score += Math.min(player.block, unblocked) * 1.2;
         break;
       case 'addCard':
+        break;
+      case 'discardRandom':
+        score -= effect.count; // losing random cards is mildly bad
+        break;
+      case 'discardNonAttacks':
+        break;
+      case 'multiplyStatus':
+        if (enemy) score += (enemy.statuses[effect.status] ?? 0) * (effect.factor - 1) * 2;
         break;
     }
   }

@@ -41,6 +41,14 @@ define({
 });
 
 define({
+  // Assassin starting relic (Ring of the Snake analogue).
+  id: 'snake_ring',
+  name: 'Snake Ring',
+  desc: '每場戰鬥開始時，額外抽 2 張牌。',
+  battleStart: [{ kind: 'draw', count: 2 }],
+});
+
+define({
   id: 'vajra',
   name: 'Vajra',
   desc: '每場戰鬥開始時，獲得 1 層力量。',

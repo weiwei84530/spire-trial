@@ -22,8 +22,13 @@ const ICONS = [
   'status_vulnerable', 'status_weak', 'status_frail', 'status_strength', 'status_dexterity',
   'status_poison', 'status_ritual', 'status_metallicize', 'status_thorns', 'status_energized',
   'status_barricade', 'status_noxious',
+  'status_nextTurnBlock', 'status_nextTurnEnergy', 'status_nextTurnDraw', 'status_blur',
+  'status_accuracy', 'status_infiniteBlades', 'status_toolsOfTrade', 'status_thousandCuts',
+  'status_afterImage', 'status_envenom', 'status_intangible', 'status_wraithForm',
 ];
-const BACKGROUNDS = ['title', 'battle', 'battle_city', 'battle_beyond', 'map', 'rest', 'shop', 'hero', 'logo', 'logo_en'];
+/** Character-specific art variants of shared cards (see CHAR_CARD_ART in app.ts). */
+const CARD_VARIANTS = ['strike_assassin', 'defend_assassin'];
+const BACKGROUNDS = ['title', 'battle', 'battle_city', 'battle_beyond', 'map', 'rest', 'shop', 'hero', 'hero_assassin', 'logo', 'logo_en'];
 const FRAMES = ['btn_stone', 'energy_orb', 'panel_stone', 'frame_attack', 'frame_skill', 'frame_power', 'frame_neutral'];
 const SFX: SfxName[] = [
   'click', 'card', 'draw', 'hit', 'block', 'hurt', 'heal', 'potion',
@@ -42,6 +47,7 @@ function imageUrls(): string[] {
     seen.add(def.id);
     urls.push(`${BASE}art/cards/${def.id}.webp`);
   }
+  for (const id of CARD_VARIANTS) urls.push(`${BASE}art/cards/${id}.webp`);
   for (const id of Object.keys(ENEMIES)) urls.push(`${BASE}art/enemies/${id}.webp`);
   for (const id of Object.keys(RELICS)) urls.push(`${BASE}art/relics/${id}.webp`);
   for (const id of Object.keys(POTIONS)) urls.push(`${BASE}art/potions/${id}.webp`);
