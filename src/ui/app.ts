@@ -177,7 +177,11 @@ function tipAttr(title: string, body = ''): string {
 let artCharacter: CharacterId = 'warrior';
 /** Cards shared across characters that still get character-specific art. */
 const CHAR_CARD_ART: Partial<Record<CharacterId, Record<string, string>>> = {
-  assassin: { strike: 'strike_assassin', defend: 'defend_assassin' },
+  assassin: {
+    strike: 'strike_assassin',
+    defend: 'defend_assassin',
+    dramatic_entrance: 'dramatic_entrance_assassin',
+  },
 };
 
 /** Shared card face used by the hand, rewards, and the campfire deck list. */

@@ -86,6 +86,10 @@ function eventArt(id: string, scene: string): void {
 // The protagonist is a lone hooded swordsman in worn leather and a tattered
 // indigo cloak; keep him consistent whenever he appears.
 const HERO = 'a lone hooded swordsman in worn leather armor and a tattered indigo cloak';
+// The second playable character: a female assassin; keep her consistent
+// whenever she appears (defined here so card() calls above can reference her).
+const HEROINE =
+  'a lithe female assassin with a short dark braid, fitted teal-green hooded leathers and a grey half-mask, twin curved daggers';
 
 card('strike', `${HERO} mid-swing, his straight sword leaving a faint golden arc of light`);
 card('defend', `${HERO} bracing behind a battered round shield, blue-white ward light rippling across its face`);
@@ -103,7 +107,7 @@ card('anger', `${HERO} screaming with rage, red mist coiling off his shoulders l
 card('sucker_punch', `a sudden gauntleted fist strike from the shadows catching a foe off guard`);
 card('wild_strike', `${HERO} in a reckless overhead leap attack, sword trailing chaotic sparks, guard wide open`);
 card('reckless_charge', `${HERO} sprinting head-down straight at the viewer, cloak streaming, dust kicked up`);
-card('backflip', `${HERO} mid-backflip away from a slashing claw, motion arc of pale blue light`);
+card('backflip', `${HEROINE} mid-backflip away from a slashing claw, motion arc of pale teal light`);
 card('heavy_armor', `a massive dark steel breastplate and pauldrons on an armor stand, faint blue enchantment lines`);
 card('bloodletting', `${HERO} holding out an open palm, wisps of crimson essence rising from it and turning into golden energy motes`);
 card('battle_trance', `close-up of the hooded hero's face, eyes glowing white, spectral cards orbiting his head`);
@@ -112,43 +116,41 @@ card('uppercut', `${HERO} delivering a rising uppercut, foe lifted off the groun
 card('hemokinesis', `a floating blade of red crystal forming out of swirling crimson mist above the hero's outstretched hand`);
 card('pummel', `rapid flurry of four fist impacts shown as overlapping golden shockwave rings`);
 card('venom_strike', `a green-glowing envenomed shortsword piercing forward through darkness`);
-card('dash', `${HERO} dashing forward low and fast, afterimages trailing, shield raised`);
+card('dash', `${HEROINE} dashing forward low and fast, afterimages trailing, twin daggers held wide`);
 card('disarm', `an enemy's jagged sword spinning away through the air, knocked from a clawed hand`);
 card('flex', `close view of the hero's arm flexing as ember-red power veins ignite under the skin`);
 card('shockwave', `${HERO} smashing his fist into the ground, expanding ring of golden shockwave knocking shadows back`);
-card('terror', `a shadowy foe recoiling in dread from the hero's burning gaze, cold indigo mist`);
+card('terror', `a shadowy foe recoiling in dread from ${HEROINE}'s cold gaze above her half-mask, indigo mist`);
 card('shiv', `a single small thin throwing blade spinning through darkness, glinting`);
-card('blade_dance', `three slender blades dancing in the air around ${HERO}, orbiting like silver fish`);
-card('cloak_and_dagger', `${HERO} wrapped in his cloak, one hidden dagger glinting beneath the folds`);
-card('adrenaline', `the hero's silhouette crackling with jagged golden lightning, heart glowing through the chest`);
+card('blade_dance', `three slender blades dancing in the air around ${HEROINE}, orbiting like silver fish`);
+card('cloak_and_dagger', `${HEROINE} wrapped in her hooded cloak, one hidden curved dagger glinting beneath the folds`);
+card('adrenaline', `${HEROINE}'s silhouette crackling with jagged golden lightning, heart glowing through the chest`);
 card('impervious', `${HERO} sealed inside a translucent fortress of overlapping blue energy shields`);
 card('demon_form', `${HERO} transformed: horns of ember light curling from his hood, wings of red smoke unfolding`);
 card('berserk', `${HERO} roaring skyward as a storm of red and gold energy erupts around him, armor plates rattling loose from the sheer aura`);
 card('quick_slash', `a single lightning-fast diagonal sword slash trail of white-gold light`);
 card('flurry', `two quick shallow slash trails crossing, sparks scattering`);
 card('heavy_blade', `${HERO} dragging an enormous greatsword one-handed, blade carving a glowing furrow in stone`);
-card('trip', `a shadowy foe tumbling forward over the hero's outstretched leg, off balance`);
+card('trip', `a shadowy foe tumbling forward over ${HEROINE}'s outstretched leg, off balance`);
 card('emergency_guard', `${HERO} throwing up a hasty shimmering barrier of blue light an instant before impact`);
 card('intimidate', `${HERO} looming forward, cloak billowing, wall of cold indigo dread washing over cowering shadows`);
 card('noxious_blast', `a bursting cloud of luminous green poison gas spreading across the battlefield`);
-card('skewer', `${HERO} thrusting a spear-like blade repeatedly, several overlapping golden thrust trails`);
+card('skewer', `${HEROINE} thrusting a slender dagger repeatedly, several overlapping teal thrust trails`);
 card('entrench', `${HERO} hunkered behind his shield, second layer of massive stone-blue barrier forming around it`);
 card('seeing_red', `extreme close-up of one eye under the hood, iris burning ember red`);
-card('footwork', `the hero's boots mid pivot on cracked stone, trails of pale light tracing a fencer's step pattern`);
+card('footwork', `${HEROINE}'s light boots mid pivot on cracked stone, trails of pale teal light tracing a nimble step pattern`);
 card('caltrops', `scattered iron caltrops glinting on dark stone, one in sharp focus with a cold blue edge`);
-card('die_die_die', `${HERO} spinning in a storm of blades, ring of slashes shredding shadows on every side`);
+card('die_die_die', `${HEROINE} spinning in a storm of blades, ring of slashes shredding shadows on every side`);
 card('barricade', `a great wall of interlocked blue-lit stone shields standing unbroken in the dark`);
-card('noxious_fumes', `${HERO} standing calm as green poison mist pours continuously out of his cloak`);
+card('noxious_fumes', `${HEROINE} standing calm as green poison mist pours continuously out of her cloak`);
 card('wound', `a deep jagged gash across a stone-grey surface, dull red glow inside the crack`);
 card('burn', `a smoldering ember scar burning through dark cloth, small flames and rising sparks`);
 card('injury', `a cracked and splintered bone charm hanging from a torn cord, ominous purple haze`);
 card('whirlwind', `${HERO} spinning with sword extended, tornado of golden slash arcs surrounding him`);
 card('metallicize', `the hero's skin turning to dark polished iron from the forearm up, reflective and cold`);
 card('dramatic_entrance', `${HERO} crashing down into the battlefield from above, cloak flared, impact ring of golden light`);
-
-// The second playable character: a female assassin; keep her consistent too.
-const HEROINE =
-  'a lithe female assassin with a short dark braid, fitted teal-green hooded leathers and a grey half-mask, twin curved daggers';
+// Neutral card shared by both characters: assassin gets her own art variant.
+card('dramatic_entrance_assassin', `${HEROINE} dropping from above into the battlefield, cloak flared, twin daggers first, impact ring of teal light`);
 
 card('neutralize', `${HEROINE} flickering past a foe in a blur, one dagger drawing a thin pale-green cut across the dark`);
 card('survivor', `${HEROINE} crouched low under her cloak among falling debris, teal ward light tracing its edge`);

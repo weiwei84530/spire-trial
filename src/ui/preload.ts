@@ -27,7 +27,7 @@ const ICONS = [
   'status_afterImage', 'status_envenom', 'status_intangible', 'status_wraithForm',
 ];
 /** Character-specific art variants of shared cards (see CHAR_CARD_ART in app.ts). */
-const CARD_VARIANTS = ['strike_assassin', 'defend_assassin'];
+const CARD_VARIANTS = ['strike_assassin', 'defend_assassin', 'dramatic_entrance_assassin'];
 const BACKGROUNDS = ['title', 'battle', 'battle_city', 'battle_beyond', 'map', 'rest', 'shop', 'hero', 'hero_assassin', 'logo', 'logo_en'];
 const FRAMES = ['btn_stone', 'energy_orb', 'panel_stone', 'frame_attack', 'frame_skill', 'frame_power', 'frame_neutral'];
 const SFX: SfxName[] = [
