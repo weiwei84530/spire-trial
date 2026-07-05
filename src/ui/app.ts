@@ -230,14 +230,38 @@ export class App {
   private restartConfirm = false;
   /** Clear-all-data confirmation dialog visibility (settings menu). */
   private clearDataConfirm = false;
-  /** Cosmetic enemy-turn sequence in progress: input locked, hand hidden. */
-  private enemyPhase = false;
+  /** Cosmetic enemy-turn sequence in progress: input locked, hand hidden.
+      This and the two input-lock flags below are accessor-backed so every
+      write reflects the combined lock onto `.battle` (`input-locked`) via
+      `syncInputLock`, keeping hand cards inert during any animation. */
+  private _enemyPhase = false;
+  private get enemyPhase(): boolean {
+    return this._enemyPhase;
+  }
+  private set enemyPhase(v: boolean) {
+    this._enemyPhase = v;
+    this.syncInputLock();
+  }
   /** One-shot turn banner text, rendered once then cleared. */
   private turnBanner: string | null = null;
   /** Short input lock while a played card flies out. */
-  private playLock = false;
+  private _playLock = false;
+  private get playLock(): boolean {
+    return this._playLock;
+  }
+  private set playLock(v: boolean) {
+    this._playLock = v;
+    this.syncInputLock();
+  }
   /** Event replay in progress: input locked, DOM patched incrementally. */
-  private replaying = false;
+  private _replaying = false;
+  private get replaying(): boolean {
+    return this._replaying;
+  }
+  private set replaying(v: boolean) {
+    this._replaying = v;
+    this.syncInputLock();
+  }
   /** Pending timeouts of the active replay, cleared on cancel. */
   private replayTimers: number[] = [];
   /** Hand card instanceIds already dealt in, so re-renders don't replay deal-in. */
@@ -546,6 +570,18 @@ export class App {
       const phaseAfter: string = this.run.phase;
       if (ended === 'victory' && phaseAfter !== 'victory') sound.play('victory');
     }
+  }
+
+  /**
+   * Reflects the combined input-lock state onto the battle container so hand
+   * cards go inert (`pointer-events:none` in CSS, which also stops `:hover`)
+   * whenever a replay, the enemy turn, or a pending play owns the board. Called
+   * from every lock-flag setter, so the class always tracks the live state.
+   */
+  private syncInputLock(): void {
+    this.root
+      .querySelector('.battle')
+      ?.classList.toggle('input-locked', this._enemyPhase || this._playLock || this._replaying);
   }
 
   private scheduleReplay(ms: number, fn: () => void): void {
@@ -1193,6 +1229,9 @@ export class App {
       this.lastPhase = this.run.phase;
     }
     this.bind();
+    // A render rebuilds `.battle`, dropping the lock class; re-apply it so an
+    // in-flight animation keeps the hand inert across the reconciling render.
+    this.syncInputLock();
     // Synchronous, pre-paint: the draw-in keyframes read their start offsets
     // from CSS vars that must be in place before the first frame renders.
     if (this.run.phase === 'battle') this.animateDraws();
@@ -1841,7 +1880,16 @@ export class App {
 
   /** Re-renders only the hand in place (hover previews must not rebuild the DOM under the cursor). */
   private refreshHand(): void {
-    if (this.run.phase !== 'battle' || !this.run.battle || this.enemyPhase || this.replaying) return;
+    // playLock included: mid-play the card is still in `player.hand` but flying
+    // to the discard pile, so a hover rebuild here would resurrect it (B).
+    if (
+      this.run.phase !== 'battle' ||
+      !this.run.battle ||
+      this.enemyPhase ||
+      this.replaying ||
+      this.playLock
+    )
+      return;
     if (this.handFlipping) return; // a reflow slide is running; don't snap it
     const hand = this.root.querySelector<HTMLElement>('.hand');
     if (!hand) return;
