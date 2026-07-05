@@ -49,6 +49,25 @@ const ICON_STYLE =
   `${STYLE} Single small object as a game inventory icon, centered, slight magical glow, ` +
   'painted in the same dark fantasy style, generous margin. Isolated on a fully transparent background, no shadow.';
 
+// Cutout-first style for relic icons that must sit on the dark UI with a clean
+// edge. The generic ICON_STYLE ("slight magical glow", "dramatic rim light")
+// makes gpt-image paint an OPAQUE woolly halo / mist / ground puff around the
+// object, which no amount of alpha post-processing can remove. This variant
+// keeps the painterly object but forbids every kind of surrounding atmosphere
+// so the alpha silhouette hugs the object itself.
+const RELIC_CUTOUT_STYLE =
+  'Dark fantasy game inventory icon, painterly digital art with visible brush strokes, ' +
+  'muted palette of deep indigo blue, charcoal grey and ember-gold accents, ' +
+  'soft even studio lighting on the object itself. ' +
+  'A single object, centered, filling most of the frame with a small even margin. ' +
+  'CRITICAL CUTOUT REQUIREMENT: the object is cleanly cut out on a FULLY TRANSPARENT background. ' +
+  'There is absolutely nothing around the object: no glow, no aura, no halo, no rim-light spill, ' +
+  'no mist, no fog, no smoke, no steam, no clouds, no dust, no sparks, no floating particles, ' +
+  'no ground, no floor, no surface, no cast shadow, no reflection, no colored haze or vignette. ' +
+  'Every single pixel outside the solid silhouette of the object must be 100% transparent, ' +
+  'with a crisp clean hard alpha edge exactly at the object outline — no soft white or grey fringe. ' +
+  'No text, no letters, no numbers, no watermark, no signature, no border, no frame.';
+
 interface Asset {
   /** id doubles as the output filename (without extension). */
   id: string;
@@ -68,6 +87,10 @@ function enemy(id: string, creature: string): void {
 }
 function relic(id: string, object: string): void {
   ASSETS.push({ id, dir: 'relics', prompt: `${ICON_STYLE} Object: ${object}`, transparent: true });
+}
+/** Relic variant that uses the strict cutout style (see RELIC_CUTOUT_STYLE). */
+function relicClean(id: string, object: string): void {
+  ASSETS.push({ id, dir: 'relics', prompt: `${RELIC_CUTOUT_STYLE} Object: ${object}`, transparent: true });
 }
 function potion(id: string, object: string): void {
   ASSETS.push({ id, dir: 'potions', prompt: `${ICON_STYLE} Object: ${object}`, transparent: true });
@@ -216,10 +239,10 @@ enemy('boss_maw', 'a gigantic wall of flesh that is mostly one enormous gaping m
 // --- Relic icons (7) ---
 
 relic('burning_blood', 'a faceted vial of luminous burning crimson blood, small flame dancing at its mouth');
-relic(
+relicClean(
   'snake_ring',
-  'an ornate silver finger ring shaped as a coiled serpent biting its own tail, emerald eyes glinting, ' +
-    'the ring floating alone in empty space — no backdrop disc, no plate, no pedestal, no circle behind it',
+  'an ornate silver finger ring shaped as a single coiled serpent biting its own tail, ' +
+    'emerald eyes glinting, fine engraved scales, tiny ember-gold highlights on the metal itself',
 );
 relic('vajra', 'an ornate golden vajra thunderbolt scepter, crackling faintly');
 relic('anchor', 'a heavy barnacled iron ship anchor with a coil of rope, cold blue sheen');
@@ -445,8 +468,17 @@ icon('status_wraithForm', `a dark wraith visage emblem with hollow glowing eyes 
 
 // --- Relic icons: batch 2 (StS-inspired additions) ---
 
-relic('lantern', 'an ornate brass adventurer lantern glowing warm gold');
-relic('bag_of_marbles', 'a small open drawstring pouch spilling shiny glass marbles');
+relicClean(
+  'lantern',
+  'an ornate weathered brass adventurer lantern with a domed top, ring handle and glass panes; ' +
+    'a warm golden flame glows only INSIDE the glass panes — the light stays contained within the ' +
+    'metal-and-glass body and does not spill, glow or haze outside the lantern frame',
+);
+relicClean(
+  'bag_of_marbles',
+  'a small open drawstring leather pouch tipped on its side with a few glossy dark-blue glass ' +
+    'marbles resting against its mouth, the marbles touching the pouch so it reads as one compact object',
+);
 relic('red_mask', 'a sinister crimson festival mask with narrow eye slits');
 relic('thread_and_needle', 'a silver sewing needle with shimmering golden thread coiled around it');
 relic('twisted_funnel', 'a twisted dark metal funnel dripping luminous green venom');
@@ -454,7 +486,11 @@ relic('strawberry', 'a plump glossy strawberry with a faint magical shimmer');
 relic('mango', 'a ripe golden mango with a faint magical shimmer');
 relic('whetstone', 'a worn grey whetstone with fine metal shavings and faint sparks');
 relic('potion_belt', 'a leather bandolier belt with small potion vials tucked in its loops');
-relic('meat_on_the_bone', 'a hearty roasted joint of meat on the bone, faint warm glow');
+relicClean(
+  'meat_on_the_bone',
+  'a hearty roasted joint of meat on a single large bone, glistening browned and charred surface, ' +
+    'held upright by the exposed bone handle — just the meat and bone, no plate, no smoke, no steam',
+);
 
 // --- Button & panel textures ---
 
