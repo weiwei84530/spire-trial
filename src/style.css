@@ -1080,6 +1080,13 @@ body[data-phase='shop'] {
   z-index: 9;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.7);
 }
+/* While a replay, the enemy turn, or a pending play owns the board the hand
+   goes inert: pointer-events:none also stops :hover from matching, so a card
+   mid-flight can't snap back under the cursor and a damage animation is never
+   cut short by a late hover re-scale. Toggled by syncInputLock(). */
+.battle.input-locked .hand .card.in-hand {
+  pointer-events: none;
+}
 /* FLIP reflow: survivors slide into their new fan slots after a play (V3). */
 .hand .card.in-hand.reflow {
   transition: transform 0.28s cubic-bezier(0.22, 0.9, 0.35, 1), box-shadow 0.12s;
