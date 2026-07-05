@@ -56,6 +56,9 @@ interface Asset {
   prompt: string;
   size?: '1024x1024' | '1536x1024' | '1024x1536';
   transparent?: boolean;
+  /** Per-asset quality override; falls back to the global QUALITY. Hero splash
+      art bumps to 'high' since it is the largest thing ever shown on screen. */
+  quality?: 'low' | 'medium' | 'high';
 }
 
 const ASSETS: Asset[] = [];
@@ -278,6 +281,39 @@ bg(
 // Same transparent-sprite treatment as the first hero.
 ASSETS[ASSETS.length - 1].transparent = true;
 ASSETS[ASSETS.length - 1].size = '1024x1536';
+
+// Character-select splash scenes: full painterly illustrations (NOT the
+// transparent battle sprites) with the hero posed on the right and quiet, dark
+// negative space on the left for the UI panel to sit over. gpt-image-2 + high
+// quality so the largest art on screen holds up like a card illustration.
+bg(
+  'char_warrior',
+  'Wide cinematic character-select splash illustration. A lone hooded swordsman hero in worn dark ' +
+    'leather armor and a tattered indigo cloak, standing in a firm wide-legged ready stance on the RIGHT ' +
+    "third of the frame, body turned slightly toward the viewer's left, a straight sword held low and " +
+    'planted point-down in one hand and a round battered iron shield on the other arm, warm ember-gold ' +
+    'rim light tracing his form. Behind him rises a colossal gothic spire and storm-wracked ruined ' +
+    'battlements, swirling indigo storm clouds and drifting embers, deep atmospheric haze and depth of ' +
+    'field. The LEFT half of the image is deliberately darker, low-contrast, softly out of focus and ' +
+    'uncluttered, leaving quiet negative space for interface text. Full body visible from head to boots ' +
+    'with clear headroom above the head, feet near the bottom edge, epic heroic scale.',
+  '1536x1024'
+);
+ASSETS[ASSETS.length - 1].quality = 'high';
+
+bg(
+  'char_assassin',
+  'Wide cinematic character-select splash illustration. A lithe female assassin hero with a short dark ' +
+    'braid, fitted teal-green hooded leathers and a grey half-mask, crouched in a light predatory ready ' +
+    "stance on the RIGHT third of the frame, body turned slightly toward the viewer's left, twin curved " +
+    'daggers held low and reversed, cold teal and ember-gold rim light tracing her form. Behind her rises ' +
+    'the same colossal gothic spire over moonlit ruined rooftops, swirling indigo night mist and drifting ' +
+    'embers, deep atmospheric haze and depth of field. The LEFT half of the image is deliberately darker, ' +
+    'low-contrast, softly out of focus and uncluttered, leaving quiet negative space for interface text. ' +
+    'Full body visible, feet near the bottom edge, epic heroic scale.',
+  '1536x1024'
+);
+ASSETS[ASSETS.length - 1].quality = 'high';
 
 bg(
   'rest',
@@ -538,7 +574,7 @@ async function generate(asset: Asset, key: string): Promise<void> {
     model: asset.transparent ? TRANSPARENT_MODEL : MODEL,
     prompt: asset.prompt,
     size: asset.size ?? '1024x1024',
-    quality: QUALITY,
+    quality: asset.quality ?? QUALITY,
     output_format: 'png',
     n: 1,
   };
