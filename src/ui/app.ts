@@ -152,6 +152,13 @@ const HERO_VIS: Record<CharacterId, { art: string; gnd: number }> = {
   warrior: { art: 'hero', gnd: 13 },
   assassin: { art: 'hero_assassin', gnd: 13 },
 };
+/** Full-bleed character-select splash (bg/ art id): a painted scene with the
+    hero posed on the right and dark negative space on the left for the UI.
+    Distinct from the transparent HERO_VIS sprite reused in battle. */
+const CHAR_SCENE: Record<CharacterId, string> = {
+  warrior: 'char_warrior',
+  assassin: 'char_assassin',
+};
 
 /** Card face background texture per card type. */
 const CARD_FRAME: Record<string, string> = {
@@ -380,9 +387,24 @@ export class App {
     // One vertical column: every entry shares the same width so edges align (V3).
     document.body.dataset.phase = 'title';
     sound.setPhase('title');
-    const inner = this.charSelect
-      ? this.charSelectHtml()
-      : `
+    const overlays = `
+        ${this.settingsOpen ? this.settingsOverlayHtml() : ''}
+        ${this.cheatOpen ? this.cheatOverlayHtml() : ''}
+        ${this.abandonConfirm ? this.abandonOverlayHtml() : ''}
+        ${this.clearDataConfirm ? this.clearDataOverlayHtml() : ''}`;
+    if (this.charSelect) {
+      // Character select breaks out of the centered dialog into a full-bleed
+      // stage: hero render pinned to the right edge, all UI on the left.
+      this.root.innerHTML = `
+      <div class="game game-bleed">
+        <div class="char-stage screen-fade-in">
+          <div class="embers">${emberHtml(18)}</div>
+          ${this.charSelectHtml()}
+        </div>
+        ${overlays}
+      </div>`;
+    } else {
+      const inner = `
           <img class="logo-img" src="${artUrl('bg', locale() === 'zh' ? 'logo' : 'logo_en')}" alt="Spire Trial" draggable="false">
           <p class="game-subtitle">${t('subtitle')}</p>
           ${saveInfo}
@@ -391,17 +413,15 @@ export class App {
             <button class="ghost-btn" data-open-settings>${t('settings')}</button>
             <button class="ghost-btn" data-open-cheats>${t('cheatMenu')}</button>
           </div>`;
-    this.root.innerHTML = `
+      this.root.innerHTML = `
       <div class="game">
         <div class="dialog-screen center title-screen screen-enter">
           <div class="embers">${emberHtml(16)}</div>
           ${inner}
         </div>
-        ${this.settingsOpen ? this.settingsOverlayHtml() : ''}
-        ${this.cheatOpen ? this.cheatOverlayHtml() : ''}
-        ${this.abandonConfirm ? this.abandonOverlayHtml() : ''}
-        ${this.clearDataConfirm ? this.clearDataOverlayHtml() : ''}
+        ${overlays}
       </div>`;
+    }
     this.root.querySelector('[data-start]')?.addEventListener('click', () => {
       sound.play('click');
       this.charSelect = true;
@@ -437,41 +457,66 @@ export class App {
     this.bindMenus();
   }
 
-  /** StS-style character select: portrait panels + an embark button. */
+  /** Full-bleed character select: a lone hero render pinned to the right edge,
+      with the name/lore/stats panel and the figure-button roster on the left. */
   private charSelectHtml(): string {
-    const panels = Object.values(CHARACTERS)
-      .map((c) => {
-        const relic = getRelicDef(c.startingRelic);
-        const sel = this.chosenChar === c.id ? 'selected' : '';
+    const c = CHARACTERS[this.chosenChar];
+    const roster = Object.values(CHARACTERS)
+      .map((cc) => {
+        const sel = this.chosenChar === cc.id;
         return `
-          <button class="char-choice ${sel}" data-pick-char="${c.id}">
-            <img class="char-portrait" src="${artUrl('bg', HERO_VIS[c.id].art)}" alt="${characterName(c.id, c.name)}" draggable="false">
-            <span class="char-name">${characterName(c.id, c.name)}</span>
-            <span class="char-desc">${characterDesc(c.id)}</span>
-            <span class="char-stats">${iconHtml('ui_hp', 'inline-icon')} ${t('charMaxHp', c.maxHp)}</span>
-            <span class="char-relic">
-              <img class="inline-icon" src="${artUrl('relics', c.startingRelic)}" alt="">
-              ${relicName(c.startingRelic, relic.name)} — ${relicDesc(c.startingRelic, relic.desc)}
+          <button class="char-fig ${sel ? 'selected' : ''}" data-pick-char="${cc.id}" aria-pressed="${sel}">
+            <span class="char-fig-frame">
+              <img src="${artUrl('bg', HERO_VIS[cc.id].art)}" alt="${characterName(cc.id, cc.name)}" draggable="false">
             </span>
+            <span class="char-fig-name">${characterName(cc.id, cc.name)}</span>
           </button>`;
       })
       .join('');
+    const scene = artUrl('bg', CHAR_SCENE[this.chosenChar]);
     return `
-      <h2 class="char-select-title">${t('chooseCharacter')}</h2>
-      <div class="char-select-row">${panels}</div>
-      <div class="title-menu">
-        <button class="primary-btn" data-embark>${t('embark')}</button>
-        <button class="ghost-btn" data-char-back>${t('back')}</button>
+      <div class="char-bg-wrap" data-bg>
+        <img class="char-bg is-active" src="${scene}" alt="" draggable="false">
+        <img class="char-bg" src="${scene}" alt="" draggable="false">
+      </div>
+      <div class="char-scene-wrap" data-scene>
+        <img class="char-scene is-active" src="${scene}" alt="${characterName(this.chosenChar, c.name)}" draggable="false">
+        <img class="char-scene" src="${scene}" alt="" draggable="false">
+      </div>
+      <div class="char-scrim"></div>
+      <div class="char-left">
+        <div class="char-panel">
+          <p class="char-eyebrow">${t('chooseCharacter')}</p>
+          <div class="char-detail play" data-detail>
+            <h2 class="char-hero-name" data-char-name>${characterName(this.chosenChar, c.name)}</h2>
+            <div class="char-rule"></div>
+            <p class="char-hero-desc" data-char-desc>${characterDesc(this.chosenChar)}</p>
+            <div class="char-hero-meta" data-char-meta>${this.charMetaHtml(this.chosenChar)}</div>
+          </div>
+          <div class="char-actions">
+            <button class="primary-btn embark-btn" data-embark>${t('embark')}</button>
+            <button class="ghost-btn" data-char-back>${t('back')}</button>
+          </div>
+        </div>
+        <div class="char-roster">${roster}</div>
+      </div>`;
+  }
+
+  /** HP + starting-relic lines for a character; re-rendered on each switch. */
+  private charMetaHtml(id: CharacterId): string {
+    const c = CHARACTERS[id];
+    const relic = getRelicDef(c.startingRelic);
+    return `
+      <div class="char-stat-line">${iconHtml('ui_hp', 'inline-icon')} ${t('charMaxHp', c.maxHp)}</div>
+      <div class="char-relic-line">
+        <img src="${artUrl('relics', c.startingRelic)}" alt="">
+        <span><b>${relicName(c.startingRelic, relic.name)}</b> — ${relicDesc(c.startingRelic, relic.desc)}</span>
       </div>`;
   }
 
   private bindCharSelect(): void {
     this.root.querySelectorAll<HTMLElement>('[data-pick-char]').forEach((el) => {
-      el.addEventListener('click', () => {
-        sound.play('click');
-        this.chosenChar = el.dataset.pickChar as CharacterId;
-        this.renderTitle();
-      });
+      el.addEventListener('click', () => this.pickChar(el.dataset.pickChar as CharacterId));
     });
     this.root.querySelector('[data-embark]')?.addEventListener('click', () => {
       sound.play('click');
@@ -482,6 +527,57 @@ export class App {
       sound.play('click');
       this.charSelect = false;
       this.renderTitle();
+    });
+  }
+
+  /**
+   * Switches the highlighted character in place (no full re-render) so the
+   * splash art and lore panel cross-animate instead of the whole screen flashing.
+   */
+  private pickChar(id: CharacterId): void {
+    if (id === this.chosenChar) return;
+    this.chosenChar = id;
+    sound.play('click');
+    const c = CHARACTERS[id];
+    // Cross-fade the sharp splash and its blurred backdrop together: point the idle
+    // layer at the new scene, then swap `is-active` once it has decoded so there is
+    // no mid-fade flash.
+    const url = artUrl('bg', CHAR_SCENE[id]);
+    const crossfade = (wrapSel: string, cls: string, alt: string) => {
+      const wrap = this.root.querySelector(wrapSel);
+      const active = wrap?.querySelector<HTMLImageElement>(`.${cls}.is-active`);
+      const next = wrap?.querySelector<HTMLImageElement>(`.${cls}:not(.is-active)`);
+      if (!active || !next) return;
+      next.src = url;
+      next.alt = alt;
+      const swap = () => {
+        next.classList.add('is-active');
+        active.classList.remove('is-active');
+        if (alt) active.alt = '';
+      };
+      if (next.complete && next.naturalWidth) swap();
+      else next.addEventListener('load', swap, { once: true });
+    };
+    crossfade('[data-scene]', 'char-scene', characterName(id, c.name));
+    crossfade('[data-bg]', 'char-bg', '');
+    // Swap the lore text and replay the staggered reveal.
+    const name = this.root.querySelector('[data-char-name]');
+    if (name) name.textContent = characterName(id, c.name);
+    const desc = this.root.querySelector('[data-char-desc]');
+    if (desc) desc.textContent = characterDesc(id);
+    const meta = this.root.querySelector('[data-char-meta]');
+    if (meta) meta.innerHTML = this.charMetaHtml(id);
+    const detail = this.root.querySelector<HTMLElement>('[data-detail]');
+    if (detail) {
+      detail.classList.remove('play');
+      void detail.offsetWidth;
+      detail.classList.add('play');
+    }
+    // Move the highlight to the chosen figure button.
+    this.root.querySelectorAll<HTMLElement>('[data-pick-char]').forEach((el) => {
+      const on = el.dataset.pickChar === id;
+      el.classList.toggle('selected', on);
+      el.setAttribute('aria-pressed', String(on));
     });
   }
 
